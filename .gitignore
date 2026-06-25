@@ -6,13 +6,14 @@ node_modules/
 *.local
 
 # WhatsApp auth state (NEVER commit — these are users' linked sessions)
-auth/
-auth_info/
-auth_info_baileys/
+# Leading slash anchors to the repo root so these do NOT match src/auth/ etc.
+/auth/
+/auth_info/
+/auth_info_baileys/
 
 # Local data: conversation memory, logs
-data/
-logs/
+/data/
+/logs/
 *.log
 
 # Google Drive credentials / tokens (phase 2)

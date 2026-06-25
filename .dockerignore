@@ -2,9 +2,9 @@ node_modules
 npm-debug.log*
 .git
 .github
-auth
-data
-logs
+/auth
+/data
+/logs
 *.log
 .env
 .env.*
