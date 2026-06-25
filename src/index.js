@@ -7,6 +7,24 @@ const { listen } = require('./web/server');
 const users = require('./db/users');
 const manager = require('./wa/sessionManager');
 
+// Postgres (especially under Coolify/Compose) may come up a moment after the
+// app. Retry the connection/migration instead of crash-looping.
+async function waitForDbAndMigrate(retries = 15, delayMs = 2000) {
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    try {
+      await migrate();
+      return;
+    } catch (err) {
+      logger.warn(
+        { attempt, retries, err: err.message },
+        'database not ready, retrying...',
+      );
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  throw new Error('Database not reachable after multiple attempts');
+}
+
 async function main() {
   const errors = validate();
   if (errors.length) {
@@ -17,7 +35,7 @@ async function main() {
 
   logger.info({ env: config.env, port: config.port }, 'Starting waagent...');
 
-  await migrate();
+  await waitForDbAndMigrate();
   await listen();
 
   // Resume WhatsApp sessions for users who had already linked a device, so a

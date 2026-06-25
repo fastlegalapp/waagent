@@ -1,0 +1,47 @@
+# Full stack: the waagent image + PostgreSQL, with persistent volumes.
+#
+# Local:   cp .env.example .env  (set SESSION_SECRET / ENCRYPTION_KEY)  &&  docker compose up --build
+# Coolify: deploy this file as a "Docker Compose" resource, or deploy the image
+#          alone and point DATABASE_URL at a managed Postgres.
+#
+# Generate the two secrets with:  openssl rand -hex 32
+
+services:
+  app:
+    build: .
+    image: ghcr.io/fastlegalapp/waagent:latest
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://waagent:${POSTGRES_PASSWORD:-waagent}@db:5432/waagent
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY}
+      PORT: 3000
+      AUTH_ROOT: /data/auth
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      DEFAULT_MODEL: ${DEFAULT_MODEL:-claude-opus-4-8}
+    volumes:
+      - wa_auth:/data        # per-user WhatsApp link sessions — must persist
+    ports:
+      - "${PORT:-3000}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: waagent
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-waagent}
+      POSTGRES_DB: waagent
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U waagent -d waagent"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  wa_auth:
+  pgdata:

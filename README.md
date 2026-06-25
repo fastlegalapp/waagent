@@ -75,6 +75,47 @@ Open <http://localhost:3000>, create an account, then:
 3. Leave reply mode on **Off** at first to watch it log incoming messages, then
    switch to **Auto** when you're happy (consider setting an allowlist first).
 
+## Deployment (Docker + CI/CD)
+
+One image runs the whole app for **all** users (it serves the API and the
+dashboard). PostgreSQL is a separate service.
+
+### Option A — Coolify (or any panel) with a prebuilt image
+
+GitHub Actions builds the image, pushes it to GHCR, and pings Coolify to
+redeploy. The same image works on **any** Docker host or panel — Coolify,
+Dokploy, CapRover, Portainer, or plain `docker run` — it's not Coolify-specific.
+
+1. Push to the default branch → `.github/workflows/deploy.yml` builds and pushes
+   `ghcr.io/<owner>/waagent:latest`.
+2. In Coolify, create a **Docker Image** resource pointing at that image.
+3. Set env vars (`DATABASE_URL`, `SESSION_SECRET`, `ENCRYPTION_KEY`,
+   `COOKIE_SECURE=true`) and add a **persistent volume mounted at `/data`** (this
+   holds users' WhatsApp link sessions — without it everyone re-scans on every
+   redeploy). Add a Postgres service in Coolify and point `DATABASE_URL` at it.
+4. Copy the resource's **deploy webhook** + API token into the repo secrets
+   `COOLIFY_WEBHOOK` and `COOLIFY_TOKEN`. Until then the deploy step no-ops and
+   the image still publishes to GHCR.
+
+### Option B — Coolify builds from this repo
+
+Connect the repo to Coolify and choose **Dockerfile** (or **Docker Compose**)
+build. Coolify rebuilds on every push — no GitHub Actions needed. Still mount a
+volume at `/data` and set the env vars above.
+
+### Option C — Docker Compose (local or a single box)
+
+```bash
+cp .env.example .env          # set SESSION_SECRET and ENCRYPTION_KEY
+docker compose up --build     # brings up app + postgres with volumes
+```
+
+Brings up the app on `:3000` plus Postgres, with named volumes for the database
+and the WhatsApp sessions.
+
+> **The `/data` volume is load-bearing.** Per-user WhatsApp link state lives
+> there. Lose it and every user has to re-scan their QR.
+
 ## Environment variables
 
 | Variable | Purpose |
