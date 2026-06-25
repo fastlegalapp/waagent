@@ -183,6 +183,9 @@ function resolveResult(r) {
   if (r.startsWith('no_text:')) {
     return ['bad', `Message had no readable text (type: ${r.slice(8)})`];
   }
+  if (r.startsWith('no_content:stub_2')) {
+    return ['bad', 'WhatsApp could NOT decrypt the incoming message (CIPHERTEXT). The encryption session with this contact is broken — typical of a WhatsApp Business contact. Normal WhatsApp contacts work; use a normal WhatsApp number.'];
+  }
   if (r.startsWith('no_content:decrypt_failed')) {
     return ['bad', 'Message could NOT be decrypted — broken encryption session (common with WhatsApp Business). Re-link, or use a normal WhatsApp number for the bot.'];
   }
