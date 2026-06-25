@@ -348,6 +348,31 @@ async function composeFollowup(settings, history) {
   }
 }
 
+// The owner replied (in their self-chat) telling the agent how to answer a
+// client. Rather than forwarding it verbatim, understand the owner's intent and
+// compose a natural client-facing message in the owner's style and the client's
+// language. Falls back to the owner's text as-is if the AI is unavailable so the
+// message always gets through.
+async function composeFromOwner(settings, history, ownerNote) {
+  const note = (ownerNote || '').trim();
+  if (!note || !settings?.ai?.apiKey) return note;
+  const directive =
+    '[The owner just told you privately how to answer this client. The line below ' +
+    'is the owner speaking to YOU, not a message from the client. Write ONE natural ' +
+    "WhatsApp message to the client that conveys what the owner means, in the client's " +
+    "language and the owner's usual style. Do not add any facts, prices, dates or " +
+    'promises the owner did not state, and do not mention the owner or these ' +
+    'instructions. Reply with only the message to send.]\n\n' +
+    `Owner: ${note}`;
+  try {
+    const text = await plainReply(settings, history, directive);
+    return (text && text.trim()) || note;
+  } catch (err) {
+    logger.error({ err: err.message, userId: settings.userId }, 'owner-relay compose failed');
+    return note; // fall back to sending the owner's text verbatim
+  }
+}
+
 async function decide(settings, history, incomingText) {
   try {
     return settings.ai.provider === 'deepseek'
@@ -396,4 +421,4 @@ async function testKey(settings) {
   }
 }
 
-module.exports = { decide, testKey, learnStyle, composeFollowup, STYLE_KEYS };
+module.exports = { decide, testKey, learnStyle, composeFollowup, composeFromOwner, STYLE_KEYS };

@@ -15,6 +15,7 @@ const { config } = require('../config');
 const logger = require('../logger');
 const userConfig = require('../services/userConfig');
 const mem = require('../db/messages');
+const agent = require('../agent/agent');
 const { handleMessage } = require('./handler');
 const { extractText, quotedId, quotedText, numberFromJid, isGroup, isIgnorable } = require('./message-utils');
 
@@ -293,8 +294,25 @@ async function connect(userId) {
       }
       return;
     }
+    // Understand the owner's note and compose a natural client-facing message in
+    // their style/language, instead of forwarding it verbatim. Uses the client's
+    // recent history for context; falls back to the owner's text if AI is off.
+    let outgoing = body;
+    try {
+      const settings = await userConfig.resolve(userId);
+      let history = [];
+      try {
+        history = (await mem.getHistory(userId, target)).slice(-20);
+      } catch (_) {
+        /* history is best-effort */
+      }
+      outgoing = (await agent.composeFromOwner(settings, history, body)) || body;
+    } catch (err) {
+      logger.error({ err: err.message, userId }, 'owner-relay: compose failed, sending verbatim');
+    }
+
     logger.info({ userId, to: numberFromJid(target), via }, 'owner-relay: forwarding to client');
-    const sent = await send(target, body);
+    const sent = await send(target, outgoing);
     if (!sent) {
       await send(selfJid(), '⚠️ Could not send — try again.');
       return;
@@ -303,14 +321,15 @@ async function connect(userId) {
     // follow continue to this client (until a newer escalation or prefix).
     rememberEscalation(userId, null, target);
     mem
-      .appendMessage(userId, target, 'assistant', body, {
+      .appendMessage(userId, target, 'assistant', outgoing, {
         waMsgId: sent.key?.id,
         ts: Math.floor(Date.now() / 1000),
         source: 'owner',
       })
       .catch(() => {});
     mem.setLastReplyAt(userId, target, Date.now()).catch(() => {});
-    await send(selfJid(), `✓ Sent to ${numberFromJid(target)}`);
+    // Show the owner what actually went out, so they can see how it was phrased.
+    await send(selfJid(), `✓ Sent to +${numberFromJid(target)}:\n${outgoing}`);
   };
   // Show the "typing…" indicator to the client, so replies feel human.
   const typing = async (jid, presence) => {
