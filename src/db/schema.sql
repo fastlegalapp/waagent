@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS user_settings (
   blocklist              TEXT NOT NULL DEFAULT '',
   ignore_groups          BOOLEAN NOT NULL DEFAULT true,
   min_interval_seconds   INTEGER NOT NULL DEFAULT 2,
+  followups_enabled      BOOLEAN NOT NULL DEFAULT false,    -- nudge clients who go quiet
+  followups_hours        INTEGER NOT NULL DEFAULT 24,       -- after this many hours of silence
   business_hours_start   INTEGER,                       -- 0-23, NULL = always on
   business_hours_end     INTEGER,
   updated_at             TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -54,9 +56,11 @@ CREATE INDEX IF NOT EXISTS messages_user_chat_idx
 
 -- Last-reply timestamps for per-chat rate limiting.
 CREATE TABLE IF NOT EXISTS chat_state (
-  user_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  chat_id       TEXT NOT NULL,
-  last_reply_at BIGINT NOT NULL DEFAULT 0,              -- epoch millis
+  user_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  chat_id        TEXT NOT NULL,
+  last_reply_at  BIGINT NOT NULL DEFAULT 0,              -- epoch millis (we/owner replied)
+  last_client_at BIGINT NOT NULL DEFAULT 0,              -- epoch millis (client last messaged)
+  followup_done  BOOLEAN NOT NULL DEFAULT false,         -- follow-up already sent this round
   PRIMARY KEY (user_id, chat_id)
 );
 
@@ -71,3 +75,7 @@ ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS persona_custom TEXT NOT NULL 
 ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS learned_style TEXT NOT NULL DEFAULT '';
 ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS learned_style_at TIMESTAMPTZ;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS source TEXT;
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS followups_enabled BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS followups_hours INTEGER NOT NULL DEFAULT 24;
+ALTER TABLE chat_state ADD COLUMN IF NOT EXISTS last_client_at BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE chat_state ADD COLUMN IF NOT EXISTS followup_done BOOLEAN NOT NULL DEFAULT false;

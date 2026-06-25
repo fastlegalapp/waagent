@@ -74,6 +74,10 @@ router.put('/', async (req, res) => {
   if (Number.isInteger(b.minIntervalSeconds)) {
     patch.min_interval_seconds = Math.max(0, Math.min(3600, b.minIntervalSeconds));
   }
+  if (typeof b.followupsEnabled === 'boolean') patch.followups_enabled = b.followupsEnabled;
+  if (Number.isInteger(b.followupsHours)) {
+    patch.followups_hours = Math.max(1, Math.min(720, b.followupsHours));
+  }
   // Business hours: accept integer 0-23 or null to clear.
   if (b.businessHoursStart === null || Number.isInteger(b.businessHoursStart)) {
     patch.business_hours_start =

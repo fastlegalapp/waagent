@@ -49,6 +49,10 @@ async function resolve(userId) {
       minIntervalSeconds: Number(row.min_interval_seconds || 2),
       businessHoursStart: row.business_hours_start,
       businessHoursEnd: row.business_hours_end,
+      followups: {
+        enabled: row.followups_enabled === true,
+        hours: Number(row.followups_hours || 24),
+      },
     },
   };
 }
@@ -75,6 +79,8 @@ async function sanitize(userId) {
     blocklist: row.blocklist,
     ignoreGroups: row.ignore_groups,
     minIntervalSeconds: row.min_interval_seconds,
+    followupsEnabled: row.followups_enabled === true,
+    followupsHours: Number(row.followups_hours || 24),
     businessHoursStart: row.business_hours_start,
     businessHoursEnd: row.business_hours_end,
   };

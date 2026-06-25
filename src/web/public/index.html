@@ -3,21 +3,88 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>waagent — WhatsApp AI assistant</title>
+    <title>FastLegal — your WhatsApp, answered like you</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <header class="topbar">
-      <div class="brand">waagent</div>
-      <div id="userbar" class="userbar hidden">
-        <span id="userEmail"></span>
-        <button id="logoutBtn" class="link">Sign out</button>
-      </div>
-    </header>
+    <!-- ===================== LANDING ===================== -->
+    <div id="landingView" class="hidden">
+      <header class="lp-nav">
+        <div class="brand">⚖️ FastLegal</div>
+        <div class="lp-nav-actions">
+          <button class="ghost" data-auth="login">Sign in</button>
+          <button class="primary" data-auth="signup">Get started</button>
+        </div>
+      </header>
 
-    <main class="container">
-      <!-- AUTH VIEW -->
-      <section id="authView" class="card auth hidden">
+      <section class="hero">
+        <div class="hero-inner">
+          <div class="pill">AI assistant for your practice</div>
+          <h1>Your WhatsApp,<br /><span class="accent">answered like you.</span></h1>
+          <p class="lead">
+            FastLegal replies to your clients on WhatsApp in your own voice — learns
+            from your past chats, follows up automatically, and never sleeps.
+          </p>
+          <div class="hero-cta">
+            <button class="primary big" data-auth="signup">Get started free</button>
+            <button class="ghost big" data-auth="login">Sign in</button>
+          </div>
+          <p class="muted small">Link your own number · bring your own AI key · your data encrypted</p>
+        </div>
+      </section>
+
+      <section class="features">
+        <div class="feature">
+          <div class="fic">💬</div><h3>Replies in your voice</h3>
+          <p>Short, natural, human — like real WhatsApp texting. Not a stiff bot.</p>
+        </div>
+        <div class="feature">
+          <div class="fic">🧠</div><h3>Learns your past chats</h3>
+          <p>Studies how you actually talk and gets more like you, day by day.</p>
+        </div>
+        <div class="feature">
+          <div class="fic">⏰</div><h3>Auto follow-ups</h3>
+          <p>Nudges clients who go quiet, on your schedule — so leads don't slip.</p>
+        </div>
+        <div class="feature">
+          <div class="fic">🔑</div><h3>Bring your own AI</h3>
+          <p>Use your own Claude or DeepSeek key. You stay in control of cost.</p>
+        </div>
+        <div class="feature">
+          <div class="fic">🗣️</div><h3>Hindi · Hinglish · any language</h3>
+          <p>Mirrors each client's language automatically. Set your own instructions.</p>
+        </div>
+        <div class="feature">
+          <div class="fic">🔒</div><h3>Private &amp; secure</h3>
+          <p>Your number, your data. API keys stored encrypted, never shared.</p>
+        </div>
+      </section>
+
+      <section class="steps">
+        <h2>Up and running in minutes</h2>
+        <div class="steps-row">
+          <div class="step"><span>1</span><h4>Link WhatsApp</h4><p>Scan a QR — your own number, no Business API.</p></div>
+          <div class="step"><span>2</span><h4>Set how it talks</h4><p>Pick a style, add your instructions, let it learn your chats.</p></div>
+          <div class="step"><span>3</span><h4>It replies &amp; follows up</h4><p>Clients get answered instantly, in your voice.</p></div>
+        </div>
+      </section>
+
+      <section class="cta">
+        <h2>Stop leaving clients on read.</h2>
+        <button class="primary big" data-auth="signup">Get started free</button>
+      </section>
+
+      <footer class="lp-foot">
+        <span>⚖️ FastLegal</span>
+        <span class="muted small">Personal WhatsApp automation · use responsibly</span>
+      </footer>
+    </div>
+
+    <!-- ===================== AUTH ===================== -->
+    <div id="authShell" class="hidden">
+      <div class="auth-back"><button class="link" id="backHome">← Back</button></div>
+      <section id="authView" class="card auth">
+        <div class="brand center">⚖️ FastLegal</div>
         <div class="tabs">
           <button id="tabLogin" class="tab active">Sign in</button>
           <button id="tabSignup" class="tab">Create account</button>
@@ -32,151 +99,178 @@
           <button type="submit" id="authSubmit" class="primary">Sign in</button>
         </form>
       </section>
+    </div>
 
-      <!-- APP VIEW -->
-      <section id="appView" class="hidden">
-        <!-- WhatsApp linking -->
-        <div class="card">
-          <h2>Your WhatsApp</h2>
-          <p class="muted">Link your own WhatsApp number. Scan the QR with
-            <strong>WhatsApp → Settings → Linked devices → Link a device</strong>.</p>
-          <div class="wa-status">
-            Status: <span id="waStatus" class="badge">idle</span>
+    <!-- ===================== APP (sidebar) ===================== -->
+    <div id="appView" class="hidden">
+      <div class="layout">
+        <aside class="sidebar">
+          <div class="brand">⚖️ FastLegal</div>
+          <nav class="side-nav">
+            <button data-nav="connect" class="active">📱 Connect</button>
+            <button data-nav="persona">🗣️ Persona &amp; Instructions</button>
+            <button data-nav="ai">🔑 AI Provider</button>
+            <button data-nav="replies">⚙️ Replies &amp; Follow-ups</button>
+          </nav>
+          <div class="side-foot">
+            <span id="userEmail" class="muted small"></span>
+            <button id="logoutBtn" class="link">Sign out</button>
           </div>
-          <div id="qrWrap" class="qr-wrap hidden">
-            <img id="qrImg" alt="WhatsApp QR code" />
-            <p class="muted">QR refreshes automatically. It expires after ~20s.</p>
-          </div>
-          <div class="row">
-            <button id="waStartBtn" class="primary">Link / Connect</button>
-            <button id="waStopBtn" class="ghost">Disconnect</button>
-            <button id="waLogoutBtn" class="danger">Unlink</button>
-            <button type="button" id="diagBtn" class="ghost">Run diagnostics</button>
-          </div>
-          <div id="diag" class="diag hidden"></div>
-        </div>
+        </aside>
 
-        <!-- Settings -->
-        <div class="card">
-          <h2>Agent settings</h2>
+        <main class="content">
+          <!-- CONNECT (not part of the settings form) -->
+          <section class="panel" data-panel="connect">
+            <h2>Your WhatsApp</h2>
+            <p class="muted">Link your own number — scan with
+              <strong>WhatsApp → Linked devices → Link a device</strong>.</p>
+            <div class="wa-status">Status: <span id="waStatus" class="badge">idle</span></div>
+            <div id="qrWrap" class="qr-wrap hidden">
+              <img id="qrImg" alt="WhatsApp QR code" />
+              <p class="muted">QR refreshes automatically.</p>
+            </div>
+            <div class="row">
+              <button id="waStartBtn" class="primary">Link / Connect</button>
+              <button id="waStopBtn" class="ghost">Disconnect</button>
+              <button id="waLogoutBtn" class="danger">Unlink</button>
+              <button type="button" id="diagBtn" class="ghost">Run diagnostics</button>
+            </div>
+            <div id="diag" class="diag hidden"></div>
+          </section>
+
+          <!-- SETTINGS FORM (persona / ai / replies) -->
           <form id="settingsForm">
-            <fieldset>
-              <legend>AI provider</legend>
-              <label>Provider
-                <select id="provider">
-                  <option value="anthropic">Claude (Anthropic)</option>
-                  <option value="deepseek">DeepSeek</option>
-                </select>
-              </label>
-              <p class="hint">The agent uses the key for the selected provider. You can save both and switch anytime.</p>
-
-              <div id="anthropicBox" class="provider-box">
-                <label>Anthropic API key
-                  <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off" />
+            <section class="panel hidden" data-panel="persona">
+              <h2>Persona &amp; Instructions</h2>
+              <fieldset>
+                <legend>Identity</legend>
+                <label>Your name<input type="text" id="ownerName" /></label>
+                <label>Business name<input type="text" id="businessName" /></label>
+                <label>What your business does
+                  <textarea id="businessDescription" rows="3"></textarea>
                 </label>
-                <p class="hint" id="apiKeyHint">Stored encrypted. Leave blank to keep the current key.</p>
-                <label>Claude model
-                  <select id="model">
-                    <option value="claude-opus-4-8">Claude Opus 4.8 (smartest)</option>
-                    <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (balanced)</option>
-                    <option value="claude-haiku-4-5">Claude Haiku 4.5 (fastest/cheapest)</option>
+              </fieldset>
+
+              <fieldset>
+                <legend>How it talks</legend>
+                <label>Chatting style
+                  <select id="personaStyle">
+                    <option value="friendly">Friendly &amp; casual (like texting a friend)</option>
+                    <option value="professional">Professional &amp; warm</option>
+                    <option value="short">Very short &amp; snappy</option>
+                    <option value="detailed">Helpful &amp; detailed</option>
+                    <option value="playful">Playful &amp; fun</option>
+                    <option value="formal">Formal &amp; respectful</option>
                   </select>
                 </label>
-              </div>
-
-              <div id="deepseekBox" class="provider-box">
-                <label>DeepSeek API key
-                  <input type="password" id="deepseekApiKey" placeholder="sk-..." autocomplete="off" />
+                <label>Your own instructions (these override everything)
+                  <textarea id="personaCustom" rows="4"
+                    placeholder="e.g. Hinglish me casually baat karo, 1-2 lines max, friendly tone. Greet with 'Namaste 🙏'. Don't quote prices — say I'll confirm."></textarea>
                 </label>
-                <p class="hint" id="deepseekKeyHint">Get one at platform.deepseek.com. Stored encrypted. Leave blank to keep the current key.</p>
-                <label>DeepSeek model
-                  <select id="deepseekModel">
-                    <option value="deepseek-chat">deepseek-chat (recommended for tools)</option>
-                    <option value="deepseek-reasoner">deepseek-reasoner</option>
+                <p class="hint">It always mirrors the client's language — replies in Hindi/Hinglish if they do.</p>
+                <div class="row">
+                  <button type="button" id="learnStyleBtn" class="ghost">Learn my style from past chats</button>
+                  <span id="learnStyleResult" class="muted"></span>
+                </div>
+                <p class="hint" id="learnStyleStatus"></p>
+              </fieldset>
+            </section>
+
+            <section class="panel hidden" data-panel="ai">
+              <h2>AI Provider</h2>
+              <fieldset>
+                <legend>Provider &amp; key</legend>
+                <label>Provider
+                  <select id="provider">
+                    <option value="anthropic">Claude (Anthropic)</option>
+                    <option value="deepseek">DeepSeek</option>
                   </select>
                 </label>
-              </div>
+                <p class="hint">The agent uses the key for the selected provider. Save both, switch anytime.</p>
+                <div id="anthropicBox" class="provider-box">
+                  <label>Anthropic API key
+                    <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off" />
+                  </label>
+                  <p class="hint" id="apiKeyHint">Stored encrypted. Leave blank to keep the current key.</p>
+                  <label>Claude model
+                    <select id="model">
+                      <option value="claude-opus-4-8">Claude Opus 4.8 (smartest)</option>
+                      <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (balanced)</option>
+                      <option value="claude-haiku-4-5">Claude Haiku 4.5 (fastest/cheapest)</option>
+                    </select>
+                  </label>
+                </div>
+                <div id="deepseekBox" class="provider-box">
+                  <label>DeepSeek API key
+                    <input type="password" id="deepseekApiKey" placeholder="sk-..." autocomplete="off" />
+                  </label>
+                  <p class="hint" id="deepseekKeyHint">Get one at platform.deepseek.com. Stored encrypted.</p>
+                  <label>DeepSeek model
+                    <select id="deepseekModel">
+                      <option value="deepseek-chat">deepseek-chat (recommended)</option>
+                      <option value="deepseek-reasoner">deepseek-reasoner</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="row">
+                  <button type="button" id="testKeyBtn" class="ghost">Test saved key</button>
+                  <span id="testKeyResult" class="muted"></span>
+                </div>
+                <p class="hint">Save first, then test the key stored for the selected provider.</p>
+              </fieldset>
+            </section>
 
-              <div class="row">
-                <button type="button" id="testKeyBtn" class="ghost">Test saved key</button>
-                <span id="testKeyResult" class="muted"></span>
-              </div>
-              <p class="hint">Save first, then test — this checks the key stored on the server for the selected provider.</p>
-            </fieldset>
-
-            <fieldset>
-              <legend>Identity</legend>
-              <label>Your name<input type="text" id="ownerName" /></label>
-              <label>Business name<input type="text" id="businessName" /></label>
-              <label>What your business does
-                <textarea id="businessDescription" rows="3"></textarea>
-              </label>
-            </fieldset>
-
-            <fieldset>
-              <legend>How it talks</legend>
-              <label>Chatting style
-                <select id="personaStyle">
-                  <option value="friendly">Friendly &amp; casual (like texting a friend)</option>
-                  <option value="professional">Professional &amp; warm</option>
-                  <option value="short">Very short &amp; snappy</option>
-                  <option value="detailed">Helpful &amp; detailed</option>
-                  <option value="playful">Playful &amp; fun</option>
-                  <option value="formal">Formal &amp; respectful</option>
-                </select>
-              </label>
-              <label>Your own instructions (optional)
-                <textarea id="personaCustom" rows="3"
-                  placeholder="e.g. Hinglish me casually baat karo, 1-2 lines max, friendly tone. Always greet with 'Namaste 🙏'."></textarea>
-              </label>
-              <p class="hint">It always mirrors the client's language — replies in Hindi/Hinglish if they do. Your instructions override the chosen style.</p>
-
-              <div class="row">
-                <button type="button" id="learnStyleBtn" class="ghost">Learn my style from past chats</button>
-                <span id="learnStyleResult" class="muted"></span>
-              </div>
-              <p class="hint" id="learnStyleStatus"></p>
-            </fieldset>
-
-            <fieldset>
-              <legend>Replies</legend>
-              <label>Mode
-                <select id="replyMode">
-                  <option value="off">Off — log only (safe dry run)</option>
-                  <option value="auto">Auto — reply to clients</option>
-                </select>
-              </label>
-              <label class="check">
-                <input type="checkbox" id="ignoreGroups" /> Ignore group chats
-              </label>
-              <label>Allowlist (numbers, comma-separated; blank = everyone)
-                <input type="text" id="allowlist" placeholder="15551234567, 447700900000" />
-              </label>
-              <label>Blocklist
-                <input type="text" id="blocklist" placeholder="" />
-              </label>
-              <div class="grid2">
-                <label>Min seconds between replies
-                  <input type="number" id="minIntervalSeconds" min="0" max="3600" />
+            <section class="panel hidden" data-panel="replies">
+              <h2>Replies &amp; Follow-ups</h2>
+              <fieldset>
+                <legend>Replies</legend>
+                <label>Mode
+                  <select id="replyMode">
+                    <option value="off">Off — log only (safe dry run)</option>
+                    <option value="auto">Auto — reply to clients</option>
+                  </select>
                 </label>
-              </div>
-              <div class="grid2">
-                <label>Business hours start (0–23, blank = always on)
-                  <input type="number" id="businessHoursStart" min="0" max="23" />
+                <label class="check"><input type="checkbox" id="ignoreGroups" /> Ignore group chats</label>
+                <label>Allowlist (numbers, comma-separated; blank = everyone)
+                  <input type="text" id="allowlist" placeholder="15551234567, 447700900000" />
                 </label>
-                <label>Business hours end (0–23)
-                  <input type="number" id="businessHoursEnd" min="0" max="23" />
-                </label>
-              </div>
-            </fieldset>
+                <label>Blocklist<input type="text" id="blocklist" /></label>
+                <div class="grid2">
+                  <label>Min seconds between replies
+                    <input type="number" id="minIntervalSeconds" min="0" max="3600" />
+                  </label>
+                </div>
+                <div class="grid2">
+                  <label>Business hours start (0–23, blank = always)
+                    <input type="number" id="businessHoursStart" min="0" max="23" />
+                  </label>
+                  <label>Business hours end (0–23)
+                    <input type="number" id="businessHoursEnd" min="0" max="23" />
+                  </label>
+                </div>
+              </fieldset>
 
-            <p class="error" id="settingsError"></p>
-            <p class="ok" id="settingsOk"></p>
-            <button type="submit" class="primary">Save settings</button>
+              <fieldset>
+                <legend>Follow-ups</legend>
+                <label class="check">
+                  <input type="checkbox" id="followupsEnabled" /> Send a follow-up if a client goes quiet
+                </label>
+                <label>Follow up after (hours of silence)
+                  <input type="number" id="followupsHours" min="1" max="720" />
+                </label>
+                <p class="hint">When you replied last and the client hasn't answered in this many hours, the agent sends one gentle, natural nudge in your style.</p>
+              </fieldset>
+            </section>
+
+            <div class="savebar">
+              <span class="error" id="settingsError"></span>
+              <span class="ok" id="settingsOk"></span>
+              <button type="submit" class="primary">Save settings</button>
+            </div>
           </form>
-        </div>
-      </section>
-    </main>
+        </main>
+      </div>
+    </div>
 
     <script src="/app.js"></script>
   </body>

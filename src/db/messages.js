@@ -122,6 +122,39 @@ async function setLastReplyAt(userId, chatId, ts) {
   );
 }
 
+// Client just messaged → record it and reset the follow-up flag for a new round.
+async function setClientActivity(userId, chatId, ts) {
+  await query(
+    `INSERT INTO chat_state (user_id, chat_id, last_client_at, followup_done)
+     VALUES ($1, $2, $3, false)
+     ON CONFLICT (user_id, chat_id)
+     DO UPDATE SET last_client_at = EXCLUDED.last_client_at, followup_done = false`,
+    [userId, chatId, ts],
+  );
+}
+
+async function markFollowupDone(userId, chatId) {
+  await query(
+    `UPDATE chat_state SET followup_done = true WHERE user_id = $1 AND chat_id = $2`,
+    [userId, chatId],
+  );
+}
+
+// Chats where we replied last, the client has been silent past the cutoff, and
+// no follow-up has been sent yet.
+async function getFollowupCandidates(userId, beforeMs) {
+  const { rows } = await query(
+    `SELECT chat_id FROM chat_state
+     WHERE user_id = $1
+       AND followup_done = false
+       AND last_reply_at > last_client_at
+       AND last_reply_at > 0
+       AND last_reply_at < $2`,
+    [userId, beforeMs],
+  );
+  return rows.map((r) => r.chat_id);
+}
+
 module.exports = {
   appendMessage,
   appendMany,
@@ -129,4 +162,7 @@ module.exports = {
   getHistory,
   getLastReplyAt,
   setLastReplyAt,
+  setClientActivity,
+  markFollowupDone,
+  getFollowupCandidates,
 };

@@ -333,6 +333,21 @@ async function learnStyle(settings, samples) {
     .trim();
 }
 
+// Compose a short, natural follow-up nudge for a client who went quiet, in the
+// owner's style. No tools — just the message text (or '' to skip).
+async function composeFollowup(settings, history) {
+  if (!settings?.ai?.apiKey) return '';
+  const instruction =
+    'This client has not replied for a while. Write ONE short, friendly follow-up ' +
+    'to gently check in — like a real person nudging them, casual and warm. Just the message, nothing else.';
+  try {
+    return (await plainReply(settings, history, instruction)) || '';
+  } catch (err) {
+    logger.error({ err: err.message, userId: settings.userId }, 'follow-up compose failed');
+    return '';
+  }
+}
+
 async function decide(settings, history, incomingText) {
   try {
     return settings.ai.provider === 'deepseek'
@@ -381,4 +396,4 @@ async function testKey(settings) {
   }
 }
 
-module.exports = { decide, testKey, learnStyle, STYLE_KEYS };
+module.exports = { decide, testKey, learnStyle, composeFollowup, STYLE_KEYS };

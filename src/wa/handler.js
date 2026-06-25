@@ -68,6 +68,8 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
   } catch (err) {
     logger.error({ err: err.message, userId }, 'failed to store incoming message');
   }
+  // Mark client activity (resets the follow-up flag for this chat).
+  mem.setClientActivity(userId, remoteJid, msgTs * 1000).catch(() => {});
 
   // Send a reply, THEN store it (best-effort). The message goes out even if the
   // database write fails. Shows a typing indicator and a short, human-like pause

@@ -7,9 +7,11 @@ const { listen } = require('./web/server');
 const users = require('./db/users');
 const manager = require('./wa/sessionManager');
 const styleLearner = require('./services/styleLearner');
+const followups = require('./services/followups');
 const ready = require('./ready');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const FOLLOWUP_INTERVAL_MS = 30 * 60 * 1000; // check every 30 min
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -44,6 +46,13 @@ async function migrateThenResume() {
       logger.warn({ err: err.message }, 'daily style-learn failed'),
     );
   }, DAY_MS).unref?.();
+
+  // Send follow-ups to quiet chats for users who enabled it.
+  setInterval(() => {
+    followups.runForAll().catch((err) =>
+      logger.warn({ err: err.message }, 'follow-up run failed'),
+    );
+  }, FOLLOWUP_INTERVAL_MS).unref?.();
 }
 
 async function main() {

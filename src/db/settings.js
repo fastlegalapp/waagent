@@ -19,6 +19,8 @@ const UPDATABLE = new Set([
   'blocklist',
   'ignore_groups',
   'min_interval_seconds',
+  'followups_enabled',
+  'followups_hours',
   'business_hours_start',
   'business_hours_end',
 ]);

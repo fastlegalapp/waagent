@@ -61,6 +61,19 @@ function getActivity(userId) {
   return activity.get(userId) || { lastIncomingAt: null, lastSentAt: null, lastResult: null, lastResultAt: null };
 }
 
+// True if the user's WhatsApp is connected and ready to send.
+function isOpen(userId) {
+  return sessions.get(userId)?.status === 'open';
+}
+
+// Send text via a user's live socket (used by the follow-up job). Returns the
+// sent message or null.
+async function sendText(userId, jid, text) {
+  const s = sessions.get(userId);
+  if (!s || s.status !== 'open' || !s.send) return null;
+  return s.send(jid, text);
+}
+
 // Track ids of messages WE sent, so the owner's own outgoing messages (which
 // also arrive as fromMe) can be told apart and learned from.
 const botSentIds = new Map();
@@ -147,7 +160,7 @@ async function connect(userId) {
     getMessage: async (key) => msgCacheFor(userId).get(key?.id) || undefined,
   });
 
-  const entry = { sock, status: 'connecting', qr: null, startedAt: Date.now() };
+  const entry = { sock, status: 'connecting', qr: null, startedAt: Date.now(), send: null };
   sessions.set(userId, entry);
 
   const send = async (jid, text) => {
@@ -166,6 +179,7 @@ async function connect(userId) {
       return null;
     }
   };
+  entry.send = send;
   const notifyOwner = async (text) => {
     const me = sock.user?.id;
     if (me) await send(me, text);
@@ -394,4 +408,14 @@ async function resumeAll(userIds) {
   }
 }
 
-module.exports = { start, stop, logout, state, getActivity, hasLinkedSession, resumeAll };
+module.exports = {
+  start,
+  stop,
+  logout,
+  state,
+  getActivity,
+  isOpen,
+  sendText,
+  hasLinkedSession,
+  resumeAll,
+};
