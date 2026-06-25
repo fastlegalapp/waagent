@@ -16,7 +16,18 @@ const logger = require('../logger');
 const userConfig = require('../services/userConfig');
 const mem = require('../db/messages');
 const { handleMessage } = require('./handler');
-const { extractText, quotedId, numberFromJid, isGroup, isIgnorable } = require('./message-utils');
+const { extractText, quotedId, quotedText, numberFromJid, isGroup, isIgnorable } = require('./message-utils');
+
+// Pull a phone number (10–15 digits) out of free text — used to read the client
+// number back out of an escalation note the owner quote-replied to.
+function phoneInText(text) {
+  const runs = (text || '').match(/\d[\d\s-]{8,}\d/g) || [];
+  for (const run of runs) {
+    const digits = run.replace(/[^0-9]/g, '');
+    if (digits.length >= 10 && digits.length <= 15) return digits;
+  }
+  return null;
+}
 
 const baileysLogger = pino({ level: 'silent' });
 
@@ -230,10 +241,25 @@ async function connect(userId) {
     if (!text) return;
     let target = null;
     let body = text;
+    let via = null;
 
-    // 1) Quote-reply to an escalation note.
+    // 1) Quote-reply to an escalation note. Prefer the in-memory map, but also
+    //    read the client number straight out of the quoted note's text so this
+    //    keeps working after a restart wiped the map.
     const qid = quotedId(m.message);
-    if (qid) target = escMapFor(userId).get(qid) || null;
+    if (qid) {
+      const mapped = escMapFor(userId).get(qid);
+      if (mapped) {
+        target = mapped;
+        via = 'quote';
+      } else {
+        const num = phoneInText(quotedText(m.message));
+        if (num) {
+          target = `${num}@s.whatsapp.net`;
+          via = 'quote-note';
+        }
+      }
+    }
 
     // 2) Explicit "<number>: message" prefix (e.g. "919876543210: ok done").
     if (!target) {
@@ -241,16 +267,25 @@ async function connect(userId) {
       if (match) {
         target = `${match[1].replace(/[^0-9]/g, '')}@s.whatsapp.net`;
         body = match[2].trim();
+        via = 'prefix';
       }
     }
 
     // 3) Otherwise fall back to the most recent escalation, if it's recent.
     if (!target) {
       const le = lastEscalated.get(userId);
-      if (le && Date.now() - le.at < RELAY_WINDOW_MS) target = le.jid;
+      if (le && Date.now() - le.at < RELAY_WINDOW_MS) {
+        target = le.jid;
+        via = 'recent';
+      }
     }
 
-    if (!target || !body) return;
+    if (!target || !body) {
+      // A quote-reply we couldn't route is worth surfacing; a plain self-note is not.
+      if (qid) logger.warn({ userId }, 'owner-relay: could not resolve target for quoted reply');
+      return;
+    }
+    logger.info({ userId, to: numberFromJid(target), via }, 'owner-relay: forwarding to client');
     const sent = await send(target, body);
     if (!sent) {
       await send(selfJid(), '⚠️ Could not send — try again.');
@@ -358,22 +393,29 @@ async function connect(userId) {
   });
 
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type !== 'notify') return;
-    // Cache every message we see so retry receipts can be served, and capture
-    // the owner's own outgoing replies so the agent can learn their style.
+    // Cache every message we see (for retry receipts), capture the owner's own
+    // outgoing replies for style-learning, and — crucially — route the owner's
+    // self-chat replies for relay. The relay must run for BOTH real-time
+    // ('notify') and synced/own-device ('append') batches, because a reply the
+    // owner sends from their phone can arrive as either.
     for (const m of messages) {
       const jid = m?.key?.remoteJid;
       if (m?.key?.id && m.message) cacheMsg(userId, m.key.id, m.message);
       if (!jid || jid === 'status@broadcast' || isGroup(jid)) continue;
+
+      // Owner wrote in their own self-chat — treat as a relay instruction.
+      // (Runs for any batch type so phone-sent replies aren't missed.)
+      if (m.key.fromMe && !isBotSent(userId, m.key.id) && isSelfChat(jid)) {
+        handleOwnerSelf(m).catch((err) =>
+          logger.error({ err: err.message, userId }, 'owner-relay failed'),
+        );
+        continue;
+      }
+
+      // Everything below is only meaningful for fresh real-time batches.
+      if (type !== 'notify') continue;
       if (m.key.fromMe) {
         if (isBotSent(userId, m.key.id)) continue; // our own outgoing — skip
-        if (isSelfChat(jid)) {
-          // Owner wrote in their own self-chat — treat as a relay instruction.
-          handleOwnerSelf(m).catch((err) =>
-            logger.error({ err: err.message, userId }, 'owner-relay failed'),
-          );
-          continue;
-        }
         const t = extractText(m.message);
         if (t) {
           mem
@@ -388,6 +430,8 @@ async function connect(userId) {
         act(userId).lastIncomingAt = Date.now();
       }
     }
+    // Only auto-reply to fresh inbound batches; skip synced history ('append').
+    if (type !== 'notify') return;
     // Reload settings per batch so config changes take effect without restart.
     let settings;
     try {

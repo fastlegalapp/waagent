@@ -48,6 +48,15 @@ function quotedId(message) {
   return m?.extendedTextMessage?.contextInfo?.stanzaId || null;
 }
 
+// The full text of the message this one is quoting (replying to), if any.
+// WhatsApp embeds the quoted message in contextInfo, so we can read it even
+// across restarts when our in-memory maps are gone.
+function quotedText(message) {
+  const m = unwrap(message);
+  const quoted = m?.extendedTextMessage?.contextInfo?.quotedMessage;
+  return quoted ? extractText(quoted) : '';
+}
+
 function numberFromJid(jid) {
   return (jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
 }
@@ -60,4 +69,4 @@ function isIgnorable(jid) {
   return !jid || jid === 'status@broadcast';
 }
 
-module.exports = { extractText, messageType, quotedId, numberFromJid, isGroup, isIgnorable };
+module.exports = { extractText, messageType, quotedId, quotedText, numberFromJid, isGroup, isIgnorable };
