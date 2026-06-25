@@ -16,6 +16,20 @@ function parseList(value) {
 async function resolve(userId) {
   const row = await settingsDb.getRaw(userId);
   if (!row) return null;
+  const provider = (row.provider || 'anthropic').toLowerCase();
+  // The active AI backend for this user (provider + decrypted key + model).
+  const ai =
+    provider === 'deepseek'
+      ? {
+          provider,
+          apiKey: decrypt(row.deepseek_api_key_enc) || '',
+          model: row.deepseek_model || 'deepseek-chat',
+        }
+      : {
+          provider: 'anthropic',
+          apiKey: decrypt(row.anthropic_api_key_enc) || '',
+          model: row.anthropic_model || 'claude-opus-4-8',
+        };
   return {
     userId,
     owner: {
@@ -23,10 +37,7 @@ async function resolve(userId) {
       business: row.business_name || '',
       description: row.business_description || '',
     },
-    anthropic: {
-      apiKey: decrypt(row.anthropic_api_key_enc) || '',
-      model: row.anthropic_model || 'claude-opus-4-8',
-    },
+    ai,
     reply: {
       mode: (row.reply_mode || 'off').toLowerCase(),
       allowlist: parseList(row.allowlist),
@@ -47,8 +58,11 @@ async function sanitize(userId) {
     ownerName: row.owner_name,
     businessName: row.business_name,
     businessDescription: row.business_description,
+    provider: row.provider || 'anthropic',
     hasApiKey: Boolean(row.anthropic_api_key_enc),
     model: row.anthropic_model,
+    hasDeepseekKey: Boolean(row.deepseek_api_key_enc),
+    deepseekModel: row.deepseek_model || 'deepseek-chat',
     replyMode: row.reply_mode,
     allowlist: row.allowlist,
     blocklist: row.blocklist,

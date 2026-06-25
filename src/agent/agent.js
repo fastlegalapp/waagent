@@ -1,14 +1,25 @@
 'use strict';
 
 const Anthropic = require('@anthropic-ai/sdk');
+const OpenAI = require('openai');
 const logger = require('../logger');
 const drive = require('./tools/drive');
 
-// Cache one Anthropic client per API key so we don't rebuild it per message.
-const clients = new Map();
-function clientFor(apiKey) {
-  if (!clients.has(apiKey)) clients.set(apiKey, new Anthropic({ apiKey }));
-  return clients.get(apiKey);
+const DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
+
+// Cache one client per API key so we don't rebuild it per message.
+const anthropicClients = new Map();
+function anthropicClientFor(apiKey) {
+  if (!anthropicClients.has(apiKey)) anthropicClients.set(apiKey, new Anthropic({ apiKey }));
+  return anthropicClients.get(apiKey);
+}
+
+const deepseekClients = new Map();
+function deepseekClientFor(apiKey) {
+  if (!deepseekClients.has(apiKey)) {
+    deepseekClients.set(apiKey, new OpenAI({ apiKey, baseURL: DEEPSEEK_BASE_URL }));
+  }
+  return deepseekClients.get(apiKey);
 }
 
 function buildSystemPrompt(owner) {
@@ -89,6 +100,20 @@ const tools = [
   },
 ];
 
+// OpenAI/DeepSeek function-calling format for the same tools.
+const openaiTools = tools.map((t) => ({
+  type: 'function',
+  function: { name: t.name, description: t.description, parameters: t.input_schema },
+}));
+
+function safeParse(json) {
+  try {
+    return JSON.parse(json || '{}');
+  } catch (_) {
+    return {};
+  }
+}
+
 async function runTool(name, input, settings) {
   if (name === 'find_document') {
     return JSON.stringify(await drive.findDocument(settings, input.query));
@@ -96,16 +121,15 @@ async function runTool(name, input, settings) {
   return JSON.stringify({ ok: true });
 }
 
-/**
- * Decide how to handle one incoming client message for a given user.
- *
- * @param {object} settings  resolved user config (owner, anthropic.{apiKey,model})
- * @param {Array<{role,content}>} history
- * @param {string} incomingText
- * @returns {Promise<{action:'reply'|'escalate'|'ignore', text?:string, reason?:string}>}
- */
-async function decide(settings, history, incomingText) {
-  const client = clientFor(settings.anthropic.apiKey);
+const EXHAUSTED = {
+  action: 'escalate',
+  reason: 'Could not resolve the request automatically',
+  text: 'Thanks for your message — let me check and get back to you shortly.',
+};
+
+// ── Anthropic (Claude) backend ───────────────────────────────────────────────
+async function decideAnthropic(settings, history, incomingText) {
+  const client = anthropicClientFor(settings.ai.apiKey);
   const messages = [
     ...history.map((m) => ({ role: m.role, content: m.content })),
     { role: 'user', content: incomingText },
@@ -115,7 +139,7 @@ async function decide(settings, history, incomingText) {
     let response;
     try {
       response = await client.messages.create({
-        model: settings.anthropic.model,
+        model: settings.ai.model,
         max_tokens: 1024,
         thinking: { type: 'adaptive' },
         system: buildSystemPrompt(settings.owner),
@@ -132,7 +156,6 @@ async function decide(settings, history, incomingText) {
     }
 
     const toolUses = response.content.filter((b) => b.type === 'tool_use');
-
     if (toolUses.length === 0) {
       const text = response.content
         .filter((b) => b.type === 'text')
@@ -161,12 +184,75 @@ async function decide(settings, history, incomingText) {
     }
     messages.push({ role: 'user', content: toolResults });
   }
+  return EXHAUSTED;
+}
 
-  return {
-    action: 'escalate',
-    reason: 'Could not resolve the request automatically',
-    text: 'Thanks for your message — let me check and get back to you shortly.',
-  };
+// ── DeepSeek (OpenAI-compatible) backend ─────────────────────────────────────
+async function decideDeepSeek(settings, history, incomingText) {
+  const client = deepseekClientFor(settings.ai.apiKey);
+  const messages = [
+    { role: 'system', content: buildSystemPrompt(settings.owner) },
+    ...history.map((m) => ({ role: m.role, content: m.content })),
+    { role: 'user', content: incomingText },
+  ];
+
+  for (let i = 0; i < 4; i += 1) {
+    let resp;
+    try {
+      resp = await client.chat.completions.create({
+        model: settings.ai.model,
+        max_tokens: 1024,
+        tools: openaiTools,
+        tool_choice: 'auto',
+        messages,
+      });
+    } catch (err) {
+      logger.error({ err: err.message, userId: settings.userId }, 'DeepSeek request failed');
+      return { action: 'escalate', reason: 'AI request failed', text: '' };
+    }
+
+    const msg = resp.choices?.[0]?.message;
+    if (!msg) return { action: 'escalate', reason: 'Empty AI response', text: '' };
+
+    const calls = msg.tool_calls || [];
+    if (calls.length === 0) {
+      return { action: 'reply', text: (msg.content || '').trim() };
+    }
+
+    const escalate = calls.find((c) => c.function?.name === 'escalate_to_human');
+    if (escalate) {
+      const a = safeParse(escalate.function.arguments);
+      return { action: 'escalate', reason: a.reason || '', text: (a.reply_to_client || '').trim() };
+    }
+    const skip = calls.find((c) => c.function?.name === 'do_not_reply');
+    if (skip) {
+      const a = safeParse(skip.function.arguments);
+      return { action: 'ignore', reason: a.reason || '' };
+    }
+
+    messages.push(msg);
+    for (const c of calls) {
+      const out = await runTool(c.function.name, safeParse(c.function.arguments), settings);
+      messages.push({ role: 'tool', tool_call_id: c.id, content: out });
+    }
+  }
+  return EXHAUSTED;
+}
+
+/**
+ * Decide how to handle one incoming client message for a given user. Routes to
+ * the user's chosen AI provider.
+ *
+ * @param {object} settings  resolved user config — settings.ai = {provider, apiKey, model}
+ * @param {Array<{role,content}>} history
+ * @param {string} incomingText
+ * @returns {Promise<{action:'reply'|'escalate'|'ignore', text?:string, reason?:string}>}
+ */
+async function decide(settings, history, incomingText) {
+  if (settings.ai.provider === 'deepseek') {
+    return decideDeepSeek(settings, history, incomingText);
+  }
+  return decideAnthropic(settings, history, incomingText);
 }
 
 module.exports = { decide };

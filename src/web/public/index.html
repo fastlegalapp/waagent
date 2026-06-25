@@ -59,18 +59,41 @@
           <h2>Agent settings</h2>
           <form id="settingsForm">
             <fieldset>
-              <legend>Claude API</legend>
-              <label>Your Anthropic API key
-                <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off" />
-              </label>
-              <p class="hint" id="apiKeyHint">Stored encrypted. Leave blank to keep the current key.</p>
-              <label>Model
-                <select id="model">
-                  <option value="claude-opus-4-8">Claude Opus 4.8 (smartest)</option>
-                  <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (balanced)</option>
-                  <option value="claude-haiku-4-5">Claude Haiku 4.5 (fastest/cheapest)</option>
+              <legend>AI provider</legend>
+              <label>Provider
+                <select id="provider">
+                  <option value="anthropic">Claude (Anthropic)</option>
+                  <option value="deepseek">DeepSeek</option>
                 </select>
               </label>
+              <p class="hint">The agent uses the key for the selected provider. You can save both and switch anytime.</p>
+
+              <div id="anthropicBox" class="provider-box">
+                <label>Anthropic API key
+                  <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off" />
+                </label>
+                <p class="hint" id="apiKeyHint">Stored encrypted. Leave blank to keep the current key.</p>
+                <label>Claude model
+                  <select id="model">
+                    <option value="claude-opus-4-8">Claude Opus 4.8 (smartest)</option>
+                    <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (balanced)</option>
+                    <option value="claude-haiku-4-5">Claude Haiku 4.5 (fastest/cheapest)</option>
+                  </select>
+                </label>
+              </div>
+
+              <div id="deepseekBox" class="provider-box">
+                <label>DeepSeek API key
+                  <input type="password" id="deepseekApiKey" placeholder="sk-..." autocomplete="off" />
+                </label>
+                <p class="hint" id="deepseekKeyHint">Get one at platform.deepseek.com. Stored encrypted. Leave blank to keep the current key.</p>
+                <label>DeepSeek model
+                  <select id="deepseekModel">
+                    <option value="deepseek-chat">deepseek-chat (recommended for tools)</option>
+                    <option value="deepseek-reasoner">deepseek-reasoner</option>
+                  </select>
+                </label>
+              </div>
             </fieldset>
 
             <fieldset>

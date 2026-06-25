@@ -27,6 +27,11 @@ router.put('/', async (req, res) => {
   }
   if (typeof b.model === 'string' && b.model) patch.anthropic_model = b.model.slice(0, 100);
 
+  if (b.provider === 'anthropic' || b.provider === 'deepseek') patch.provider = b.provider;
+  if (typeof b.deepseekModel === 'string' && b.deepseekModel) {
+    patch.deepseek_model = b.deepseekModel.slice(0, 100);
+  }
+
   if (b.replyMode === 'auto' || b.replyMode === 'off') patch.reply_mode = b.replyMode;
   if (typeof b.allowlist === 'string') patch.allowlist = b.allowlist.slice(0, 2000);
   if (typeof b.blocklist === 'string') patch.blocklist = b.blocklist.slice(0, 2000);
@@ -44,9 +49,12 @@ router.put('/', async (req, res) => {
       b.businessHoursEnd === null ? null : Math.max(0, Math.min(23, b.businessHoursEnd));
   }
 
-  // API key: only update if provided. Empty string clears it.
+  // API keys: only update if provided. Empty string clears.
   if (typeof b.apiKey === 'string') {
     patch.anthropic_api_key_enc = b.apiKey.trim() ? encrypt(b.apiKey.trim()) : null;
+  }
+  if (typeof b.deepseekApiKey === 'string') {
+    patch.deepseek_api_key_enc = b.deepseekApiKey.trim() ? encrypt(b.deepseekApiKey.trim()) : null;
   }
 
   try {

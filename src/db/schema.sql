@@ -15,8 +15,11 @@ CREATE TABLE IF NOT EXISTS user_settings (
   owner_name             TEXT NOT NULL DEFAULT '',
   business_name          TEXT NOT NULL DEFAULT '',
   business_description   TEXT NOT NULL DEFAULT '',
+  provider               TEXT NOT NULL DEFAULT 'anthropic', -- 'anthropic' | 'deepseek'
   anthropic_api_key_enc  TEXT,                          -- AES-GCM encrypted, NULL until set
   anthropic_model        TEXT NOT NULL DEFAULT 'claude-opus-4-8',
+  deepseek_api_key_enc   TEXT,                          -- AES-GCM encrypted, NULL until set
+  deepseek_model         TEXT NOT NULL DEFAULT 'deepseek-chat',
   reply_mode             TEXT NOT NULL DEFAULT 'off',   -- 'auto' | 'off'
   allowlist              TEXT NOT NULL DEFAULT '',      -- comma-separated numbers
   blocklist              TEXT NOT NULL DEFAULT '',
@@ -47,3 +50,8 @@ CREATE TABLE IF NOT EXISTS chat_state (
   last_reply_at BIGINT NOT NULL DEFAULT 0,              -- epoch millis
   PRIMARY KEY (user_id, chat_id)
 );
+
+-- Migrations for existing deployments (idempotent).
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'anthropic';
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS deepseek_api_key_enc TEXT;
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS deepseek_model TEXT NOT NULL DEFAULT 'deepseek-chat';

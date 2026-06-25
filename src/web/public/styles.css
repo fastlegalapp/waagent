@@ -94,6 +94,12 @@ button.link { background: none; color: var(--muted); padding: 4px; font-weight: 
 .badge.qr { color: var(--accent2); border-color: var(--accent2); }
 .badge.connecting { color: #f5b14c; border-color: #f5b14c; }
 
+.provider-box {
+  margin-top: 10px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--line);
+}
+
 .wa-status { margin: 8px 0; }
 .qr-wrap { margin: 16px 0; text-align: center; }
 .qr-wrap img { width: 240px; height: 240px; background: #fff; border-radius: 8px; padding: 8px; }

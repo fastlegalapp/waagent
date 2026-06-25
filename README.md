@@ -17,8 +17,9 @@ A small SaaS where **multiple users** sign up, link **their own** WhatsApp numbe
   JWT session cookie (httpOnly).
 - **Per-user isolation** — each user has their own settings, conversation
   memory, and a dedicated WhatsApp session. No data crosses tenants.
-- **Bring your own key** — each user pastes their Anthropic API key in settings;
-  it's stored **AES-256-GCM encrypted** at rest. You carry zero AI cost.
+- **Bring your own key** — each user picks an AI provider (**Claude / Anthropic**
+  or **DeepSeek**) and pastes their own API key; keys are stored **AES-256-GCM
+  encrypted** at rest. You carry zero AI cost.
 - **Web dashboard** — link/unlink WhatsApp (QR in the browser), configure the
   agent (identity, model, reply mode, allow/blocklist, business hours).
 - **The agent** — Claude (default `claude-opus-4-8`) drafts professional replies,
@@ -149,7 +150,8 @@ For private GHCR images, log the host in first:
 ## Data model (PostgreSQL)
 
 - `users` — id, email, bcrypt password hash.
-- `user_settings` — identity, **encrypted** Anthropic key, model, reply rules.
+- `user_settings` — identity, provider choice, **encrypted** Anthropic + DeepSeek
+  keys, model, reply rules.
 - `messages` — per-user, per-chat conversation memory.
 - `chat_state` — last-reply timestamps for rate limiting.
 

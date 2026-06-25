@@ -64,8 +64,11 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner }) {
 
   if (settings.reply.mode === 'off') return; // logging only
 
-  if (!settings.anthropic.apiKey) {
-    logger.warn({ userId }, 'reply mode auto but no Anthropic key set — skipping');
+  if (!settings.ai.apiKey) {
+    logger.warn(
+      { userId, provider: settings.ai.provider },
+      'reply mode auto but no API key set for the selected provider — skipping',
+    );
     return;
   }
 

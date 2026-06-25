@@ -71,8 +71,21 @@ function showApp(user) {
 }
 
 // ── Settings ─────────────────────────────────────────────────────────────────
+function applyProviderVisibility() {
+  const p = $('provider').value;
+  $('anthropicBox').classList.toggle('hidden', p !== 'anthropic');
+  $('deepseekBox').classList.toggle('hidden', p !== 'deepseek');
+}
+
 function fillSettings(s) {
+  $('provider').value = s.provider || 'anthropic';
   $('model').value = s.model || 'claude-opus-4-8';
+  $('deepseekModel').value = s.deepseekModel || 'deepseek-chat';
+  $('deepseekApiKey').value = '';
+  $('deepseekKeyHint').textContent = s.hasDeepseekKey
+    ? 'A DeepSeek key is set (encrypted). Leave blank to keep it.'
+    : 'No DeepSeek key set yet. Get one at platform.deepseek.com.';
+  applyProviderVisibility();
   $('ownerName').value = s.ownerName || '';
   $('businessName').value = s.businessName || '';
   $('businessDescription').value = s.businessDescription || '';
@@ -108,7 +121,9 @@ $('settingsForm').onsubmit = async (e) => {
     ownerName: $('ownerName').value,
     businessName: $('businessName').value,
     businessDescription: $('businessDescription').value,
+    provider: $('provider').value,
     model: $('model').value,
+    deepseekModel: $('deepseekModel').value,
     replyMode: $('replyMode').value,
     ignoreGroups: $('ignoreGroups').checked,
     allowlist: $('allowlist').value,
@@ -117,9 +132,11 @@ $('settingsForm').onsubmit = async (e) => {
     businessHoursStart: intOrNull($('businessHoursStart').value),
     businessHoursEnd: intOrNull($('businessHoursEnd').value),
   };
-  // Only send the key if the user typed one.
+  // Only send a key if the user typed one (per provider).
   const key = $('apiKey').value.trim();
   if (key) payload.apiKey = key;
+  const dsKey = $('deepseekApiKey').value.trim();
+  if (dsKey) payload.deepseekApiKey = dsKey;
 
   try {
     const { settings } = await api('/api/settings', {
@@ -133,6 +150,8 @@ $('settingsForm').onsubmit = async (e) => {
     $('settingsError').textContent = err.message;
   }
 };
+
+$('provider').onchange = applyProviderVisibility;
 
 // ── WhatsApp linking ─────────────────────────────────────────────────────────
 let pollTimer = null;
