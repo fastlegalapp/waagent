@@ -10,6 +10,7 @@ const logger = require('../logger');
 const authRoutes = require('./routes/auth');
 const settingsRoutes = require('./routes/settings');
 const waRoutes = require('./routes/wa');
+const ready = require('../ready');
 
 function createApp() {
   const app = express();
@@ -22,7 +23,11 @@ function createApp() {
   app.use('/api/settings', settingsRoutes);
   app.use('/api/wa', waRoutes);
 
-  app.get('/api/health', (req, res) => res.json({ ok: true }));
+  // Always 200 once the process is up, so the panel's proxy has a live upstream
+  // (no 502) even while the database is still connecting.
+  app.get('/api/health', (req, res) =>
+    res.json({ ok: true, db: ready.db ? 'ready' : 'connecting' }),
+  );
 
   // Static dashboard (login + app). The SPA-ish frontend handles routing.
   const publicDir = path.join(__dirname, 'public');
@@ -45,8 +50,10 @@ function createApp() {
 function listen() {
   const app = createApp();
   return new Promise((resolve) => {
-    const server = app.listen(config.port, () => {
-      logger.info(`Web server listening on http://localhost:${config.port}`);
+    // Bind 0.0.0.0 explicitly so the container is reachable from the panel's
+    // reverse proxy (not just localhost).
+    const server = app.listen(config.port, '0.0.0.0', () => {
+      logger.info(`Web server listening on 0.0.0.0:${config.port}`);
       resolve(server);
     });
   });

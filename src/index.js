@@ -6,46 +6,62 @@ const { migrate } = require('./db/migrate');
 const { listen } = require('./web/server');
 const users = require('./db/users');
 const manager = require('./wa/sessionManager');
+const ready = require('./ready');
 
-// Postgres (especially under Coolify/Compose) may come up a moment after the
-// app. Retry the connection/migration instead of crash-looping.
-async function waitForDbAndMigrate(retries = 15, delayMs = 2000) {
-  for (let attempt = 1; attempt <= retries; attempt += 1) {
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Connect + migrate in the background, retrying forever so a slow or
+// temporarily-unreachable Postgres (common on first deploy) self-heals instead
+// of crash-looping the container. The HTTP server is already up by now, so the
+// panel's proxy has a live upstream (no 502) the whole time.
+async function migrateThenResume() {
+  for (let attempt = 1; ; attempt += 1) {
     try {
       await migrate();
-      return;
+      ready.db = true;
+      logger.info('Database ready.');
+      break;
     } catch (err) {
-      logger.warn(
-        { attempt, retries, err: err.message },
-        'database not ready, retrying...',
-      );
-      await new Promise((r) => setTimeout(r, delayMs));
+      logger.warn({ attempt, err: err.message }, 'database not ready, retrying in 5s');
+      await sleep(5000);
     }
   }
-  throw new Error('Database not reachable after multiple attempts');
-}
 
-async function main() {
-  const errors = validate();
-  if (errors.length) {
-    for (const e of errors) logger.error(e);
-    logger.error('Fix the above in your .env, then restart. See .env.example.');
-    process.exit(1);
-  }
-
-  logger.info({ env: config.env, port: config.port }, 'Starting waagent...');
-
-  await waitForDbAndMigrate();
-  await listen();
-
-  // Resume WhatsApp sessions for users who had already linked a device, so a
-  // server restart reconnects them without re-scanning the QR.
+  // Resume WhatsApp sessions for users who had already linked a device.
   try {
     const ids = await users.listIds();
     await manager.resumeAll(ids);
   } catch (err) {
-    logger.error({ err: err.message }, 'failed to resume sessions on boot');
+    logger.error({ err: err.message }, 'failed to resume sessions');
   }
+}
+
+async function main() {
+  // Surface the configuration state in the logs immediately — the usual cause
+  // of a failed deploy is a missing secret or DATABASE_URL.
+  logger.info(
+    {
+      env: config.env,
+      port: config.port,
+      authRoot: config.authRoot,
+      databaseUrl: config.databaseUrl ? 'set' : 'MISSING',
+      sessionSecret: config.sessionSecret ? 'set' : 'MISSING',
+      encryptionKey: config.encryptionKey ? 'set' : 'MISSING',
+    },
+    'Starting waagent...',
+  );
+
+  const errors = validate();
+  if (errors.length) {
+    for (const e of errors) logger.error(e);
+    logger.error('Cannot start until the configuration above is fixed. See .env.example.');
+    process.exit(1);
+  }
+
+  // Open the port FIRST so the container is immediately reachable, then bring up
+  // the database in the background.
+  await listen();
+  migrateThenResume();
 }
 
 process.on('unhandledRejection', (err) => {
