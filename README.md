@@ -24,6 +24,9 @@ A small SaaS where **multiple users** sign up, link **their own** WhatsApp numbe
   agent (identity, model, reply mode, allow/blocklist, business hours).
 - **The agent** — Claude (default `claude-opus-4-8`) drafts professional replies,
   escalates to the user when unsure, and stays silent on spam.
+- **Conversation context** — on linking, WhatsApp's history sync imports each
+  client's past 1:1 conversation into the agent's memory, so replies are informed
+  by what was already said (the last ~30 messages per chat are sent to the model).
 - **Google Drive** — scaffolded as a per-user Phase 2 stub.
 
 ## Architecture

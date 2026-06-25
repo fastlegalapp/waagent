@@ -3,22 +3,7 @@
 const logger = require('../logger');
 const mem = require('../db/messages');
 const agent = require('../agent/agent');
-
-function extractText(message) {
-  if (!message) return '';
-  return (
-    message.conversation ||
-    message.extendedTextMessage?.text ||
-    message.imageMessage?.caption ||
-    message.videoMessage?.caption ||
-    message.documentMessage?.caption ||
-    ''
-  ).trim();
-}
-
-function numberFromJid(jid) {
-  return (jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
-}
+const { extractText, numberFromJid, isGroup, isIgnorable } = require('./message-utils');
 
 function withinBusinessHours(reply) {
   const { businessHoursStart: start, businessHoursEnd: end } = reply;
@@ -46,21 +31,35 @@ function isAllowed(reply, number) {
  */
 async function handleMessage({ userId, settings, msg, send, notifyOwner }) {
   const remoteJid = msg.key?.remoteJid;
-  if (!remoteJid) return;
+  if (isIgnorable(remoteJid)) return;
   if (msg.key?.fromMe) return;
-  if (remoteJid === 'status@broadcast') return;
-
-  const isGroup = remoteJid.endsWith('@g.us');
-  if (isGroup && settings.reply.ignoreGroups) return;
+  if (isGroup(remoteJid) && settings.reply.ignoreGroups) return;
 
   const text = extractText(msg.message);
   if (!text) return;
 
   const number = numberFromJid(msg.key.participant || remoteJid);
   const label = `${number} (${remoteJid})`;
+  const msgTs = Number(msg.messageTimestamp) || Math.floor(Date.now() / 1000);
 
   logger.info({ userId, from: number, text }, 'incoming');
-  await mem.appendMessage(userId, remoteJid, 'user', text);
+  // Tag with the WhatsApp id/timestamp so it dedupes against history sync and
+  // sorts chronologically alongside imported history.
+  await mem.appendMessage(userId, remoteJid, 'user', text, {
+    waMsgId: msg.key.id,
+    ts: msgTs,
+  });
+
+  // Send a reply and store it, capturing the WhatsApp id of our sent message so
+  // the history sync won't duplicate it later.
+  const reply = async (body) => {
+    const sent = await send(remoteJid, body);
+    await mem.appendMessage(userId, remoteJid, 'assistant', body, {
+      waMsgId: sent?.key?.id,
+      ts: Math.floor(Date.now() / 1000),
+    });
+    await mem.setLastReplyAt(userId, remoteJid, Date.now());
+  };
 
   if (settings.reply.mode === 'off') return; // logging only
 
@@ -79,12 +78,10 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner }) {
   if ((now - last) / 1000 < settings.reply.minIntervalSeconds) return;
 
   if (!withinBusinessHours(settings.reply)) {
-    const afterHours =
+    await reply(
       `Thanks for your message! ${settings.owner.name} is currently unavailable. ` +
-      `We\'ll get back to you as soon as we\'re back.`;
-    await send(remoteJid, afterHours);
-    await mem.appendMessage(userId, remoteJid, 'assistant', afterHours);
-    await mem.setLastReplyAt(userId, remoteJid, now);
+        `We\'ll get back to you as soon as we\'re back.`,
+    );
     return;
   }
 
@@ -103,18 +100,12 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner }) {
     await notifyOwner(
       `🔔 Needs you — chat with ${label}\nReason: ${outcome.reason}\nLast message: "${text}"`,
     );
-    if (outcome.text) {
-      await send(remoteJid, outcome.text);
-      await mem.appendMessage(userId, remoteJid, 'assistant', outcome.text);
-      await mem.setLastReplyAt(userId, remoteJid, now);
-    }
+    if (outcome.text) await reply(outcome.text);
     return;
   }
 
   if (outcome.text) {
-    await send(remoteJid, outcome.text);
-    await mem.appendMessage(userId, remoteJid, 'assistant', outcome.text);
-    await mem.setLastReplyAt(userId, remoteJid, now);
+    await reply(outcome.text);
     logger.info({ userId, to: number }, 'replied');
   }
 }

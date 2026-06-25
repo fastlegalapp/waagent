@@ -37,11 +37,17 @@ CREATE TABLE IF NOT EXISTS messages (
   chat_id    TEXT NOT NULL,
   role       TEXT NOT NULL,                             -- 'user' | 'assistant'
   content    TEXT NOT NULL,
+  wa_msg_id  TEXT,                                      -- WhatsApp message id (dedupe), NULL for internal
+  ts         BIGINT NOT NULL DEFAULT 0,                 -- WhatsApp message timestamp (epoch seconds)
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS messages_user_chat_idx
   ON messages (user_id, chat_id, id);
+-- Dedupe live messages against history sync (NULLs are distinct, so internal
+-- rows without a WhatsApp id are unaffected).
+CREATE UNIQUE INDEX IF NOT EXISTS messages_user_wamsg_uniq
+  ON messages (user_id, wa_msg_id);
 
 -- Last-reply timestamps for per-chat rate limiting.
 CREATE TABLE IF NOT EXISTS chat_state (
@@ -55,3 +61,6 @@ CREATE TABLE IF NOT EXISTS chat_state (
 ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'anthropic';
 ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS deepseek_api_key_enc TEXT;
 ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS deepseek_model TEXT NOT NULL DEFAULT 'deepseek-chat';
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS wa_msg_id TEXT;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS ts BIGINT NOT NULL DEFAULT 0;
+CREATE UNIQUE INDEX IF NOT EXISTS messages_user_wamsg_uniq ON messages (user_id, wa_msg_id);

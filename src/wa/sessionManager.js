@@ -14,7 +14,9 @@ const pino = require('pino');
 const { config } = require('../config');
 const logger = require('../logger');
 const userConfig = require('../services/userConfig');
+const mem = require('../db/messages');
 const { handleMessage } = require('./handler');
+const { extractText, isGroup, isIgnorable } = require('./message-utils');
 
 const baileysLogger = pino({ level: 'silent' });
 
@@ -58,7 +60,7 @@ async function connect(userId) {
     logger: baileysLogger,
     printQRInTerminal: false,
     markOnlineOnConnect: false,
-    syncFullHistory: false,
+    syncFullHistory: true, // pull past conversations so the agent has context
     browser: ['waagent', 'Chrome', '120.0.0'],
     qrTimeout: 60_000,
     connectTimeoutMs: 60_000,
@@ -70,9 +72,10 @@ async function connect(userId) {
 
   const send = async (jid, text) => {
     try {
-      await sock.sendMessage(jid, { text });
+      return await sock.sendMessage(jid, { text });
     } catch (err) {
       logger.error({ err: err.message, userId, jid }, 'failed to send');
+      return null;
     }
   };
   const notifyOwner = async (text) => {
@@ -173,6 +176,35 @@ async function connect(userId) {
       } catch (err) {
         logger.error({ err: err.message, userId }, 'handler error');
       }
+    }
+  });
+
+  // Past conversations sent by WhatsApp shortly after linking (and progressively
+  // afterwards). Import 1:1 text messages so the agent has real context. May
+  // fire several times; duplicates are ignored at the DB layer.
+  sock.ev.on('messaging-history.set', async ({ messages: hist }) => {
+    if (!Array.isArray(hist) || hist.length === 0) return;
+    const rows = [];
+    for (const m of hist) {
+      const jid = m.key?.remoteJid;
+      if (isIgnorable(jid) || isGroup(jid)) continue; // 1:1 chats only
+      const text = extractText(m.message);
+      if (!text) continue;
+      rows.push({
+        userId,
+        chatId: jid,
+        role: m.key.fromMe ? 'assistant' : 'user',
+        content: text,
+        waMsgId: m.key.id,
+        ts: Number(m.messageTimestamp) || 0,
+      });
+    }
+    if (rows.length === 0) return;
+    try {
+      await mem.appendMany(rows);
+      logger.info({ userId, imported: rows.length }, 'imported WhatsApp history');
+    } catch (err) {
+      logger.error({ err: err.message, userId }, 'failed to import history');
     }
   });
 
