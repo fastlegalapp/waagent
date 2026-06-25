@@ -61,6 +61,24 @@ function getActivity(userId) {
   return activity.get(userId) || { lastIncomingAt: null, lastSentAt: null, lastResult: null, lastResultAt: null };
 }
 
+// Track ids of messages WE sent, so the owner's own outgoing messages (which
+// also arrive as fromMe) can be told apart and learned from.
+const botSentIds = new Map();
+const BOT_IDS_MAX = 5000;
+function markBotSent(userId, id) {
+  if (!id) return;
+  let s = botSentIds.get(userId);
+  if (!s) {
+    s = new Set();
+    botSentIds.set(userId, s);
+  }
+  s.add(id);
+  if (s.size > BOT_IDS_MAX) s.delete(s.values().next().value);
+}
+function isBotSent(userId, id) {
+  return botSentIds.get(userId)?.has(id) || false;
+}
+
 // Minimal CacheStore for Baileys' msgRetryCounterCache (tracks decryption-retry
 // counts so retry receipts are handled and resent correctly).
 function makeCache() {
@@ -135,8 +153,12 @@ async function connect(userId) {
   const send = async (jid, text) => {
     try {
       const sent = await sock.sendMessage(jid, { text });
-      // Cache so we can re-serve it if the recipient asks for a retry.
-      if (sent?.key?.id) cacheMsg(userId, sent.key.id, sent.message);
+      // Cache so we can re-serve it if the recipient asks for a retry, and mark
+      // it as bot-sent so the echo isn't mistaken for the owner's own message.
+      if (sent?.key?.id) {
+        cacheMsg(userId, sent.key.id, sent.message);
+        markBotSent(userId, sent.key.id);
+      }
       act(userId).lastSentAt = Date.now();
       return sent;
     } catch (err) {
@@ -238,10 +260,26 @@ async function connect(userId) {
 
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return;
-    // Cache every message we see so retry receipts can be served.
+    // Cache every message we see so retry receipts can be served, and capture
+    // the owner's own outgoing replies so the agent can learn their style.
     for (const m of messages) {
+      const jid = m?.key?.remoteJid;
       if (m?.key?.id && m.message) cacheMsg(userId, m.key.id, m.message);
-      if (m?.key && !m.key.fromMe && m.key.remoteJid !== 'status@broadcast') {
+      if (!jid || jid === 'status@broadcast' || isGroup(jid)) continue;
+      if (m.key.fromMe) {
+        if (!isBotSent(userId, m.key.id)) {
+          const t = extractText(m.message);
+          if (t) {
+            mem
+              .appendMessage(userId, jid, 'assistant', t, {
+                waMsgId: m.key.id,
+                ts: Number(m.messageTimestamp) || Math.floor(Date.now() / 1000),
+                source: 'owner',
+              })
+              .catch(() => {});
+          }
+        }
+      } else {
         act(userId).lastIncomingAt = Date.now();
       }
     }
@@ -287,6 +325,7 @@ async function connect(userId) {
         chatId: jid,
         role: m.key.fromMe ? 'assistant' : 'user',
         content: text,
+        source: m.key.fromMe ? 'owner' : 'client',
         waMsgId: m.key.id,
         ts: Number(m.messageTimestamp) || 0,
       });

@@ -46,4 +46,18 @@ async function update(userId, patch) {
   return rows[0] || null;
 }
 
-module.exports = { getRaw, update };
+async function setLearnedStyle(userId, learnedStyle) {
+  await query(
+    `UPDATE user_settings
+     SET learned_style = $2, learned_style_at = now(), updated_at = now()
+     WHERE user_id = $1`,
+    [userId, learnedStyle],
+  );
+}
+
+async function listUserIds() {
+  const { rows } = await query(`SELECT user_id FROM user_settings`);
+  return rows.map((r) => r.user_id);
+}
+
+module.exports = { getRaw, update, setLearnedStyle, listUserIds };

@@ -11,12 +11,13 @@ const MAX_TURNS = 30; // bound history per chat to control token usage
 async function appendMessage(userId, chatId, role, content, opts = {}) {
   const waMsgId = opts.waMsgId || null;
   const ts = Number.isFinite(opts.ts) ? Math.floor(opts.ts) : Math.floor(Date.now() / 1000);
+  const source = opts.source || null;
   try {
     await query(
-      `INSERT INTO messages (user_id, chat_id, role, content, wa_msg_id, ts)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO messages (user_id, chat_id, role, content, source, wa_msg_id, ts)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (user_id, wa_msg_id) DO NOTHING`,
-      [userId, chatId, role, content, waMsgId, ts],
+      [userId, chatId, role, content, source, waMsgId, ts],
     );
   } catch (err) {
     await query(
@@ -24,6 +25,19 @@ async function appendMessage(userId, chatId, role, content, opts = {}) {
       [userId, chatId, role, content],
     );
   }
+}
+
+// Recent messages the OWNER actually sent to clients — the gold data for
+// learning how they talk.
+async function getOwnerSamples(userId, limit = 120) {
+  const { rows } = await query(
+    `SELECT content FROM messages
+     WHERE user_id = $1 AND source = 'owner' AND length(content) > 0
+     ORDER BY id DESC
+     LIMIT $2`,
+    [userId, limit],
+  );
+  return rows.map((r) => r.content);
 }
 
 // Bulk import (history sync). rows: [{userId, chatId, role, content, waMsgId, ts}].
@@ -35,13 +49,21 @@ async function appendMany(rows) {
     const values = [];
     const params = [];
     slice.forEach((r, j) => {
-      const b = j * 6;
-      values.push(`($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6})`);
-      params.push(r.userId, r.chatId, r.role, r.content, r.waMsgId || null, Math.floor(r.ts) || 0);
+      const b = j * 7;
+      values.push(`($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7})`);
+      params.push(
+        r.userId,
+        r.chatId,
+        r.role,
+        r.content,
+        r.source || null,
+        r.waMsgId || null,
+        Math.floor(r.ts) || 0,
+      );
     });
     // eslint-disable-next-line no-await-in-loop
     await query(
-      `INSERT INTO messages (user_id, chat_id, role, content, wa_msg_id, ts)
+      `INSERT INTO messages (user_id, chat_id, role, content, source, wa_msg_id, ts)
        VALUES ${values.join(',')}
        ON CONFLICT (user_id, wa_msg_id) DO NOTHING`,
       params,
@@ -103,6 +125,7 @@ async function setLastReplyAt(userId, chatId, ts) {
 module.exports = {
   appendMessage,
   appendMany,
+  getOwnerSamples,
   getHistory,
   getLastReplyAt,
   setLastReplyAt,

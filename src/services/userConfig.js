@@ -38,6 +38,7 @@ async function resolve(userId) {
       description: row.business_description || '',
       style: row.persona_style || 'friendly',
       custom: row.persona_custom || '',
+      learnedStyle: row.learned_style || '',
     },
     ai,
     reply: {
@@ -62,6 +63,8 @@ async function sanitize(userId) {
     businessDescription: row.business_description,
     personaStyle: row.persona_style || 'friendly',
     personaCustom: row.persona_custom || '',
+    learnedStyle: row.learned_style || '',
+    learnedStyleAt: row.learned_style_at || null,
     provider: row.provider || 'anthropic',
     hasApiKey: Boolean(row.anthropic_api_key_enc),
     model: row.anthropic_model,

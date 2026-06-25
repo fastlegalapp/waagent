@@ -4,6 +4,7 @@ const express = require('express');
 const settingsDb = require('../../db/settings');
 const userConfig = require('../../services/userConfig');
 const agent = require('../../agent/agent');
+const styleLearner = require('../../services/styleLearner');
 
 const STYLE_KEYS = agent.STYLE_KEYS;
 const { encrypt } = require('../../auth/crypto');
@@ -31,6 +32,17 @@ router.get('/', async (req, res) => {
   const view = await userConfig.sanitize(req.userId);
   if (!view) return res.status(404).json({ error: 'No settings found.' });
   res.json({ settings: view });
+});
+
+// Learn how the owner talks from their real past messages, now.
+router.post('/learn-style', async (req, res) => {
+  try {
+    const result = await styleLearner.learnForUser(req.userId);
+    res.json(result);
+  } catch (err) {
+    logger.error({ err: err.message, userId: req.userId }, 'learn-style failed');
+    res.status(500).json({ ok: false, error: 'Could not learn the style.' });
+  }
 });
 
 router.put('/', async (req, res) => {

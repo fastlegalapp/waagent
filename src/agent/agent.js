@@ -47,6 +47,9 @@ function buildSystemPrompt(owner) {
     owner.description ? `What you do: ${owner.description}` : '',
     '',
     `Your chatting style: ${style}`,
+    owner.learnedStyle
+      ? `How ${name} actually writes, learned from their real past chats — match this closely: ${owner.learnedStyle}`
+      : '',
     owner.custom
       ? `IMPORTANT — ${name}'s own instructions on how to chat (follow these above all): ${owner.custom}`
       : '',
@@ -296,6 +299,40 @@ async function plainReply(settings, history, incomingText) {
     .trim();
 }
 
+// Study the owner's real past messages and produce a short style guide the
+// agent follows to sound like them. Uses the owner's own API key.
+async function learnStyle(settings, samples) {
+  if (!settings?.ai?.apiKey) throw new Error('No API key');
+  const numbered = samples
+    .slice(0, 120)
+    .map((s, i) => `${i + 1}. ${String(s).replace(/\s+/g, ' ').slice(0, 300)}`)
+    .join('\n');
+  const prompt =
+    `Below are real WhatsApp messages that ${settings.owner.name} sent to their clients. ` +
+    `Study how they write and produce a SHORT style guide (5-8 short lines) so an assistant can sound exactly like them.\n` +
+    `Cover: language (English / Hindi / Hinglish / mix), tone, typical message length, common greetings and sign-offs, ` +
+    `favourite words or phrases, emoji habits, capitalisation/punctuation quirks.\n` +
+    `Write it as direct instructions ("Use…", "Keep…", "Avoid…"). Only describe what you actually see; do not invent.\n\n` +
+    `Messages:\n${numbered}`;
+
+  if (settings.ai.provider === 'deepseek') {
+    const resp = await deepseekClientFor(settings.ai.apiKey).chat.completions.create(
+      { model: settings.ai.model, max_tokens: 500, messages: [{ role: 'user', content: prompt }] },
+      { timeout: 60_000 },
+    );
+    return (resp.choices?.[0]?.message?.content || '').trim();
+  }
+  const resp = await anthropicClientFor(settings.ai.apiKey).messages.create(
+    { model: settings.ai.model, max_tokens: 500, messages: [{ role: 'user', content: prompt }] },
+    { timeout: 60_000 },
+  );
+  return resp.content
+    .filter((b) => b.type === 'text')
+    .map((b) => b.text)
+    .join('')
+    .trim();
+}
+
 async function decide(settings, history, incomingText) {
   try {
     return settings.ai.provider === 'deepseek'
@@ -344,4 +381,4 @@ async function testKey(settings) {
   }
 }
 
-module.exports = { decide, testKey, STYLE_KEYS };
+module.exports = { decide, testKey, learnStyle, STYLE_KEYS };

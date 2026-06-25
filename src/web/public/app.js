@@ -91,6 +91,9 @@ function fillSettings(s) {
   $('businessDescription').value = s.businessDescription || '';
   $('personaStyle').value = s.personaStyle || 'friendly';
   $('personaCustom').value = s.personaCustom || '';
+  $('learnStyleStatus').textContent = s.learnedStyle
+    ? `✅ Learned your style${s.learnedStyleAt ? ` (updated ${new Date(s.learnedStyleAt).toLocaleString()})` : ''}. It re-learns daily.`
+    : 'Not learned yet — link WhatsApp (imports your history), then click the button.';
   $('replyMode').value = s.replyMode || 'off';
   $('ignoreGroups').checked = s.ignoreGroups !== false;
   $('allowlist').value = s.allowlist || '';
@@ -156,6 +159,22 @@ $('settingsForm').onsubmit = async (e) => {
 };
 
 $('provider').onchange = applyProviderVisibility;
+
+$('learnStyleBtn').onclick = async () => {
+  const out = $('learnStyleResult');
+  out.textContent = 'Learning from your past chats…';
+  try {
+    const r = await api('/api/settings/learn-style', { method: 'POST' });
+    if (r.ok) {
+      out.textContent = `✅ Learned from ${r.samples} of your messages`;
+      await loadSettings();
+    } else {
+      out.textContent = `❌ ${r.error || 'Could not learn'}`;
+    }
+  } catch (e) {
+    out.textContent = `❌ ${e.message}`;
+  }
+};
 
 function ago(ts) {
   if (!ts) return 'never';

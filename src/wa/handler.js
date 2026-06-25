@@ -63,6 +63,7 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
     await mem.appendMessage(userId, remoteJid, 'user', text, {
       waMsgId: msg.key.id,
       ts: msgTs,
+      source: 'client',
     });
   } catch (err) {
     logger.error({ err: err.message, userId }, 'failed to store incoming message');
@@ -80,6 +81,7 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
       await mem.appendMessage(userId, remoteJid, 'assistant', body, {
         waMsgId: sent?.key?.id,
         ts: Math.floor(Date.now() / 1000),
+        source: 'bot',
       });
       await mem.setLastReplyAt(userId, remoteJid, Date.now());
     } catch (err) {

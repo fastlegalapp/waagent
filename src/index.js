@@ -6,7 +6,10 @@ const { migrate } = require('./db/migrate');
 const { listen } = require('./web/server');
 const users = require('./db/users');
 const manager = require('./wa/sessionManager');
+const styleLearner = require('./services/styleLearner');
 const ready = require('./ready');
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -34,6 +37,13 @@ async function migrateThenResume() {
   } catch (err) {
     logger.error({ err: err.message }, 'failed to resume sessions');
   }
+
+  // Re-learn each owner's chatting style daily so the agent matures over time.
+  setInterval(() => {
+    styleLearner.learnForAll().catch((err) =>
+      logger.warn({ err: err.message }, 'daily style-learn failed'),
+    );
+  }, DAY_MS).unref?.();
 }
 
 async function main() {
