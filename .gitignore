@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Environment & secrets
+.env
+*.local
+
+# WhatsApp auth state (NEVER commit — this is your linked session)
+auth/
+auth_info/
+auth_info_baileys/
+
+# Local data: conversation memory, logs
+data/
+logs/
+*.log
+
+# Google Drive credentials / tokens (phase 2)
+credentials.json
+token.json
+gdrive-*.json
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
