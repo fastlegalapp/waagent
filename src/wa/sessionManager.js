@@ -116,8 +116,8 @@ async function connect(userId) {
     auth: authState,
     logger: baileysLogger,
     printQRInTerminal: false,
-    markOnlineOnConnect: false,
-    syncFullHistory: true, // pull past conversations so the agent has context
+    markOnlineOnConnect: true, // stay online so retry receipts are serviced promptly
+    syncFullHistory: false, // lighter, more stable session (recent history still syncs)
     browser: ['waagent', 'Chrome', '120.0.0'],
     qrTimeout: 60_000,
     connectTimeoutMs: 60_000,
@@ -176,6 +176,9 @@ async function connect(userId) {
       entry.status = 'open';
       entry.qr = null;
       reconnects.set(userId, 0);
+      // Mark available so WhatsApp delivers retry receipts and we can resend
+      // messages the recipient couldn't decrypt.
+      sock.sendPresenceUpdate('available').catch(() => {});
       logger.info({ userId, waUser: sock.user?.id }, 'WhatsApp connected ✅');
     }
 
