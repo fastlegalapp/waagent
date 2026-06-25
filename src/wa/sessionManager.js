@@ -29,6 +29,10 @@ function phoneInText(text) {
   return null;
 }
 
+// Marker that identifies one of our escalation notes when it appears as the
+// quoted message in the owner's reply. Keep in sync with handler.js's note.
+const ESCALATION_MARK = /needs you|🔔/i;
+
 const baileysLogger = pino({ level: 'silent' });
 
 // userId -> { sock, status, qr, startedAt }
@@ -247,17 +251,16 @@ async function connect(userId) {
     //    read the client number straight out of the quoted note's text so this
     //    keeps working after a restart wiped the map.
     const qid = quotedId(m.message);
-    if (qid) {
-      const mapped = escMapFor(userId).get(qid);
-      if (mapped) {
-        target = mapped;
-        via = 'quote';
-      } else {
-        const num = phoneInText(quotedText(m.message));
-        if (num) {
-          target = `${num}@s.whatsapp.net`;
-          via = 'quote-note';
-        }
+    const qText = quotedText(m.message);
+    const mapped = qid && escMapFor(userId).get(qid);
+    if (mapped) {
+      target = mapped;
+      via = 'quote';
+    } else if (qText) {
+      const num = phoneInText(qText);
+      if (num) {
+        target = `${num}@s.whatsapp.net`;
+        via = 'quote-note';
       }
     }
 
@@ -282,7 +285,12 @@ async function connect(userId) {
 
     if (!target || !body) {
       // A quote-reply we couldn't route is worth surfacing; a plain self-note is not.
-      if (qid) logger.warn({ userId }, 'owner-relay: could not resolve target for quoted reply');
+      if (qid || qText) {
+        logger.warn(
+          { userId, hadQuote: !!qText, quotedSample: (qText || '').slice(0, 60) },
+          'owner-relay: could not resolve target for quoted reply',
+        );
+      }
       return;
     }
     logger.info({ userId, to: numberFromJid(target), via }, 'owner-relay: forwarding to client');
@@ -403,13 +411,24 @@ async function connect(userId) {
       if (m?.key?.id && m.message) cacheMsg(userId, m.key.id, m.message);
       if (!jid || jid === 'status@broadcast' || isGroup(jid)) continue;
 
-      // Owner wrote in their own self-chat — treat as a relay instruction.
-      // (Runs for any batch type so phone-sent replies aren't missed.)
-      if (m.key.fromMe && !isBotSent(userId, m.key.id) && isSelfChat(jid)) {
-        handleOwnerSelf(m).catch((err) =>
-          logger.error({ err: err.message, userId }, 'owner-relay failed'),
-        );
-        continue;
+      // Relay an owner's reply back to the client. We trigger this when EITHER
+      // the message is in the owner's self-chat, OR it quote-replies to one of
+      // our escalation notes — detected by the note's text, which WhatsApp
+      // embeds in the reply. The note path is robust even if self-chat JID
+      // detection fails or the process was restarted.
+      if (m.key.fromMe && !isBotSent(userId, m.key.id)) {
+        const qText = quotedText(m.message);
+        const repliesToEscalation = ESCALATION_MARK.test(qText);
+        if (repliesToEscalation || isSelfChat(jid)) {
+          logger.info(
+            { userId, chat: numberFromJid(jid), self: isSelfChat(jid), repliesToEscalation },
+            'owner-relay: handling owner reply',
+          );
+          handleOwnerSelf(m).catch((err) =>
+            logger.error({ err: err.message, userId }, 'owner-relay failed'),
+          );
+          continue;
+        }
       }
 
       // Everything below is only meaningful for fresh real-time batches.
