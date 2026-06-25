@@ -3,7 +3,15 @@
 const logger = require('../logger');
 const mem = require('../db/messages');
 const agent = require('../agent/agent');
-const { extractText, messageType, numberFromJid, isGroup, isIgnorable } = require('./message-utils');
+const {
+  extractText,
+  messageType,
+  numberFromJid,
+  phoneJid,
+  senderName,
+  isGroup,
+  isIgnorable,
+} = require('./message-utils');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -53,7 +61,12 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
   const text = extractText(msg.message);
   if (!text) return mark(`no_text:${messageType(msg.message)}`);
 
-  const number = numberFromJid(msg.key.participant || remoteJid);
+  // Resolve the client's real mobile-number JID (handles WhatsApp "LID"
+  // addressing) so replies and the allow/block list use the phone number, not
+  // an internal id.
+  const clientJid = phoneJid(msg) || remoteJid;
+  const number = numberFromJid(msg.key.participant || clientJid);
+  const clientName = senderName(msg);
   const msgTs = Number(msg.messageTimestamp) || Math.floor(Date.now() / 1000);
 
   logger.info({ userId, from: number, text }, 'incoming');
@@ -136,14 +149,14 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
   if (outcome.action === 'ignore') return mark('ignored');
 
   if (outcome.action === 'escalate') {
-    const who = msg.pushName ? `${msg.pushName} (${number})` : number;
+    const who = clientName ? `${clientName}\n📱 +${number}` : `📱 +${number}`;
     await notifyOwner(
       `🔔 Needs you — ${who}\n` +
         `Reason: ${outcome.reason}\n` +
         `Their message: "${text}"\n\n` +
         `↩️ Reply to THIS message to answer them` +
         ` (or send "${number}: your reply").`,
-      remoteJid,
+      clientJid,
     );
     if (outcome.text) await reply(outcome.text);
     return mark('escalated');

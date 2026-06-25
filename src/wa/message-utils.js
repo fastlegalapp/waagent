@@ -61,6 +61,26 @@ function numberFromJid(jid) {
   return (jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
 }
 
+// The real mobile-number JID for a message. WhatsApp's newer "LID" addressing
+// can put an internal id (e.g. "12345@lid") in remoteJid; the actual phone-
+// number JID is then carried in the *Alt fields. We prefer any
+// "@s.whatsapp.net" JID so messages reach the client's real mobile number
+// instead of an internal id.
+function phoneJid(msg) {
+  const k = (msg && msg.key) || {};
+  const candidates = [k.remoteJidAlt, k.participantAlt, k.remoteJid, k.participant];
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.endsWith('@s.whatsapp.net')) return c;
+  }
+  return k.remoteJid || '';
+}
+
+// The client's display name as set on their own WhatsApp account.
+function senderName(msg) {
+  const n = (msg && msg.pushName) ? String(msg.pushName).trim() : '';
+  return n || null;
+}
+
 function isGroup(jid) {
   return (jid || '').endsWith('@g.us');
 }
@@ -69,4 +89,14 @@ function isIgnorable(jid) {
   return !jid || jid === 'status@broadcast';
 }
 
-module.exports = { extractText, messageType, quotedId, quotedText, numberFromJid, isGroup, isIgnorable };
+module.exports = {
+  extractText,
+  messageType,
+  quotedId,
+  quotedText,
+  numberFromJid,
+  phoneJid,
+  senderName,
+  isGroup,
+  isIgnorable,
+};
