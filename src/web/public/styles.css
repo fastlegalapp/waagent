@@ -100,6 +100,19 @@ button.link { background: none; color: var(--muted); padding: 4px; font-weight: 
   border-top: 1px dashed var(--line);
 }
 
+.diag {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: #11141a;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.diag .row-item { display: flex; justify-content: space-between; gap: 12px; }
+.diag .good { color: var(--ok); }
+.diag .bad { color: var(--danger); }
+
 .wa-status { margin: 8px 0; }
 .qr-wrap { margin: 16px 0; text-align: center; }
 .qr-wrap img { width: 240px; height: 240px; background: #fff; border-radius: 8px; padding: 8px; }

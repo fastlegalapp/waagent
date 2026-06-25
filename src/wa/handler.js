@@ -31,15 +31,22 @@ function isAllowed(reply, number) {
  * @param {function} ctx.send      async (jid, text) => void
  * @param {function} ctx.notifyOwner async (text) => void
  */
-async function handleMessage({ userId, settings, msg, send, notifyOwner, typing }) {
+async function handleMessage({ userId, settings, msg, send, notifyOwner, typing, note }) {
   const showTyping = typing || (async () => {});
+  const mark = (status) => {
+    try {
+      if (note) note(status);
+    } catch (_) {
+      /* diagnostics are best-effort */
+    }
+  };
   const remoteJid = msg.key?.remoteJid;
   if (isIgnorable(remoteJid)) return;
   if (msg.key?.fromMe) return;
-  if (isGroup(remoteJid) && settings.reply.ignoreGroups) return;
+  if (isGroup(remoteJid) && settings.reply.ignoreGroups) return mark('group_ignored');
 
   const text = extractText(msg.message);
-  if (!text) return;
+  if (!text) return mark('no_text');
 
   const number = numberFromJid(msg.key.participant || remoteJid);
   const label = `${number} (${remoteJid})`;
@@ -75,17 +82,17 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing 
     }
   };
 
-  if (settings.reply.mode === 'off') return; // logging only
+  if (settings.reply.mode === 'off') return mark('mode_off'); // logging only
 
   if (!settings.ai.apiKey) {
     logger.warn(
       { userId, provider: settings.ai.provider },
       'reply mode auto but no API key set for the selected provider — skipping',
     );
-    return;
+    return mark('no_api_key');
   }
 
-  if (!isAllowed(settings.reply, number)) return;
+  if (!isAllowed(settings.reply, number)) return mark('not_allowed');
 
   const now = Date.now();
   let last = 0;
@@ -94,14 +101,14 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing 
   } catch (err) {
     logger.error({ err: err.message, userId }, 'failed to read last-reply time');
   }
-  if ((now - last) / 1000 < settings.reply.minIntervalSeconds) return;
+  if ((now - last) / 1000 < settings.reply.minIntervalSeconds) return mark('rate_limited');
 
   if (!withinBusinessHours(settings.reply)) {
     await reply(
       `Thanks for your message! ${settings.owner.name} is currently unavailable. ` +
         `We\'ll get back to you as soon as we\'re back.`,
     );
-    return;
+    return mark('after_hours');
   }
 
   let history = [];
@@ -118,20 +125,22 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing 
     outcome = { action: 'escalate', reason: 'agent error', text: '' };
   }
 
-  if (outcome.action === 'ignore') return;
+  if (outcome.action === 'ignore') return mark('ignored');
 
   if (outcome.action === 'escalate') {
     await notifyOwner(
       `🔔 Needs you — chat with ${label}\nReason: ${outcome.reason}\nLast message: "${text}"`,
     );
     if (outcome.text) await reply(outcome.text);
-    return;
+    return mark('escalated');
   }
 
   if (outcome.text) {
     await reply(outcome.text);
     logger.info({ userId, to: number }, 'replied');
+    return mark('replied');
   }
+  return mark('empty_reply');
 }
 
 module.exports = { handleMessage };

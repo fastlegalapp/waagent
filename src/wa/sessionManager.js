@@ -47,6 +47,20 @@ function cacheMsg(userId, id, message) {
   if (m.size > MSG_CACHE_MAX) m.delete(m.keys().next().value); // drop oldest
 }
 
+// userId -> recent activity, for the dashboard diagnostics panel.
+const activity = new Map();
+function act(userId) {
+  let a = activity.get(userId);
+  if (!a) {
+    a = { lastIncomingAt: null, lastSentAt: null, lastResult: null, lastResultAt: null };
+    activity.set(userId, a);
+  }
+  return a;
+}
+function getActivity(userId) {
+  return activity.get(userId) || { lastIncomingAt: null, lastSentAt: null, lastResult: null, lastResultAt: null };
+}
+
 function authDir(userId) {
   return path.join(config.authRoot, userId);
 }
@@ -98,6 +112,7 @@ async function connect(userId) {
       const sent = await sock.sendMessage(jid, { text });
       // Cache so we can re-serve it if the recipient asks for a retry.
       if (sent?.key?.id) cacheMsg(userId, sent.key.id, sent.message);
+      act(userId).lastSentAt = Date.now();
       return sent;
     } catch (err) {
       logger.error({ err: err.message, userId, jid }, 'failed to send');
@@ -198,6 +213,9 @@ async function connect(userId) {
     // Cache every message we see so retry receipts can be served.
     for (const m of messages) {
       if (m?.key?.id && m.message) cacheMsg(userId, m.key.id, m.message);
+      if (m?.key && !m.key.fromMe && m.key.remoteJid !== 'status@broadcast') {
+        act(userId).lastIncomingAt = Date.now();
+      }
     }
     // Reload settings per batch so config changes take effect without restart.
     let settings;
@@ -205,14 +223,22 @@ async function connect(userId) {
       settings = await userConfig.resolve(userId);
     } catch (err) {
       logger.error({ err: err.message, userId }, 'failed to load settings');
+      act(userId).lastResult = 'settings_load_failed';
+      act(userId).lastResultAt = Date.now();
       return;
     }
     if (!settings) return;
+    const note = (status) => {
+      const a = act(userId);
+      a.lastResult = status;
+      a.lastResultAt = Date.now();
+    };
     for (const msg of messages) {
       try {
-        await handleMessage({ userId, settings, msg, send, notifyOwner, typing });
+        await handleMessage({ userId, settings, msg, send, notifyOwner, typing, note });
       } catch (err) {
         logger.error({ err: err.message, userId }, 'handler error');
+        note('handler_error');
       }
     }
   });
@@ -301,4 +327,4 @@ async function resumeAll(userIds) {
   }
 }
 
-module.exports = { start, stop, logout, state, hasLinkedSession, resumeAll };
+module.exports = { start, stop, logout, state, getActivity, hasLinkedSession, resumeAll };

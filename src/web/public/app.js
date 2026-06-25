@@ -153,6 +153,68 @@ $('settingsForm').onsubmit = async (e) => {
 
 $('provider').onchange = applyProviderVisibility;
 
+function ago(ts) {
+  if (!ts) return 'never';
+  const s = Math.round((Date.now() - ts) / 1000);
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.round(s / 60)}m ago`;
+  return `${Math.round(s / 3600)}h ago`;
+}
+
+const RESULT_TEXT = {
+  replied: ['good', 'Replied to the last message'],
+  mode_off: ['bad', 'Reply mode is OFF — set it to Auto and save'],
+  no_api_key: ['bad', 'No API key for the selected provider — add it / fix the provider'],
+  not_allowed: ['bad', 'Sender is blocked or not in your allowlist'],
+  rate_limited: ['bad', 'Skipped: too soon after the previous reply (min interval)'],
+  after_hours: ['good', 'Outside business hours — sent the holding message'],
+  group_ignored: ['bad', 'Group chat — ignored (by setting)'],
+  no_text: ['bad', 'Last message had no text (sticker/media without caption)'],
+  ignored: ['bad', 'Agent chose not to reply (spam / not worth it)'],
+  escalated: ['good', 'Escalated to you'],
+  empty_reply: ['bad', 'Agent produced an empty reply'],
+  settings_load_failed: ['bad', 'Could not load your settings (database issue?)'],
+  handler_error: ['bad', 'Internal error handling the message (check logs)'],
+};
+
+function row(label, cls, value) {
+  return `<div class="row-item"><span>${label}</span><span class="${cls}">${value}</span></div>`;
+}
+
+function renderDiag(d) {
+  const wa = d.wa || {};
+  const a = d.activity || {};
+  const s = d.settings || {};
+  const k = d.keyTest || {};
+  const waOk = wa.status === 'open';
+  const modeOk = s.replyMode === 'auto';
+  const [rcls, rtxt] = RESULT_TEXT[a.lastResult] || ['', a.lastResult || 'no messages processed yet'];
+  const html = [
+    row('WhatsApp connection', waOk ? 'good' : 'bad', waOk ? 'connected' : wa.status || 'idle'),
+    row('Reply mode', modeOk ? 'good' : 'bad', s.replyMode || '—'),
+    row(
+      'API key',
+      k.ok ? 'good' : 'bad',
+      k.ok ? `working (${k.provider}/${k.model})` : `❌ ${k.error || 'not working'}`,
+    ),
+    row('Last message received', a.lastIncomingAt ? 'good' : 'bad', ago(a.lastIncomingAt)),
+    row('Last reply sent', 'muted', ago(a.lastSentAt)),
+    row('Last outcome', rcls, rtxt),
+  ].join('');
+  $('diag').innerHTML = html;
+  $('diag').classList.remove('hidden');
+}
+
+$('diagBtn').onclick = async () => {
+  $('diag').classList.remove('hidden');
+  $('diag').textContent = 'Running…';
+  try {
+    renderDiag(await api('/api/wa/diagnostics'));
+  } catch (e) {
+    $('diag').textContent = `Error: ${e.message}`;
+  }
+};
+
 $('testKeyBtn').onclick = async () => {
   const out = $('testKeyResult');
   out.textContent = 'Testing…';
