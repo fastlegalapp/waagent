@@ -114,6 +114,25 @@
             </fieldset>
 
             <fieldset>
+              <legend>How it talks</legend>
+              <label>Chatting style
+                <select id="personaStyle">
+                  <option value="friendly">Friendly &amp; casual (like texting a friend)</option>
+                  <option value="professional">Professional &amp; warm</option>
+                  <option value="short">Very short &amp; snappy</option>
+                  <option value="detailed">Helpful &amp; detailed</option>
+                  <option value="playful">Playful &amp; fun</option>
+                  <option value="formal">Formal &amp; respectful</option>
+                </select>
+              </label>
+              <label>Your own instructions (optional)
+                <textarea id="personaCustom" rows="3"
+                  placeholder="e.g. Hinglish me casually baat karo, 1-2 lines max, friendly tone. Always greet with 'Namaste 🙏'."></textarea>
+              </label>
+              <p class="hint">It always mirrors the client's language — replies in Hindi/Hinglish if they do. Your instructions override the chosen style.</p>
+            </fieldset>
+
+            <fieldset>
               <legend>Replies</legend>
               <label>Mode
                 <select id="replyMode">

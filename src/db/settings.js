@@ -7,6 +7,8 @@ const UPDATABLE = new Set([
   'owner_name',
   'business_name',
   'business_description',
+  'persona_style',
+  'persona_custom',
   'provider',
   'anthropic_api_key_enc',
   'anthropic_model',

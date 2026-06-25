@@ -89,6 +89,8 @@ function fillSettings(s) {
   $('ownerName').value = s.ownerName || '';
   $('businessName').value = s.businessName || '';
   $('businessDescription').value = s.businessDescription || '';
+  $('personaStyle').value = s.personaStyle || 'friendly';
+  $('personaCustom').value = s.personaCustom || '';
   $('replyMode').value = s.replyMode || 'off';
   $('ignoreGroups').checked = s.ignoreGroups !== false;
   $('allowlist').value = s.allowlist || '';
@@ -121,6 +123,8 @@ $('settingsForm').onsubmit = async (e) => {
     ownerName: $('ownerName').value,
     businessName: $('businessName').value,
     businessDescription: $('businessDescription').value,
+    personaStyle: $('personaStyle').value,
+    personaCustom: $('personaCustom').value,
     provider: $('provider').value,
     model: $('model').value,
     deepseekModel: $('deepseekModel').value,

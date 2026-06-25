@@ -4,6 +4,8 @@ const express = require('express');
 const settingsDb = require('../../db/settings');
 const userConfig = require('../../services/userConfig');
 const agent = require('../../agent/agent');
+
+const STYLE_KEYS = agent.STYLE_KEYS;
 const { encrypt } = require('../../auth/crypto');
 const { requireAuth } = require('../../auth/session');
 const logger = require('../../logger');
@@ -39,6 +41,12 @@ router.put('/', async (req, res) => {
   if (typeof b.businessName === 'string') patch.business_name = b.businessName.slice(0, 200);
   if (typeof b.businessDescription === 'string') {
     patch.business_description = b.businessDescription.slice(0, 2000);
+  }
+  if (typeof b.personaStyle === 'string' && STYLE_KEYS.includes(b.personaStyle)) {
+    patch.persona_style = b.personaStyle;
+  }
+  if (typeof b.personaCustom === 'string') {
+    patch.persona_custom = b.personaCustom.slice(0, 2000);
   }
   if (typeof b.model === 'string' && b.model) patch.anthropic_model = b.model.slice(0, 100);
 

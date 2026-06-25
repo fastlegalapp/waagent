@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS user_settings (
   owner_name             TEXT NOT NULL DEFAULT '',
   business_name          TEXT NOT NULL DEFAULT '',
   business_description   TEXT NOT NULL DEFAULT '',
+  persona_style          TEXT NOT NULL DEFAULT 'friendly',  -- how it should chat
+  persona_custom         TEXT NOT NULL DEFAULT '',          -- owner's own how-to-talk notes
   provider               TEXT NOT NULL DEFAULT 'anthropic', -- 'anthropic' | 'deepseek'
   anthropic_api_key_enc  TEXT,                          -- AES-GCM encrypted, NULL until set
   anthropic_model        TEXT NOT NULL DEFAULT 'claude-opus-4-8',
@@ -61,3 +63,5 @@ ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS deepseek_api_key_enc TEXT;
 ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS deepseek_model TEXT NOT NULL DEFAULT 'deepseek-chat';
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS wa_msg_id TEXT;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS ts BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS persona_style TEXT NOT NULL DEFAULT 'friendly';
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS persona_custom TEXT NOT NULL DEFAULT '';
