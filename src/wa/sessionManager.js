@@ -117,7 +117,7 @@ async function connect(userId) {
     logger: baileysLogger,
     printQRInTerminal: false,
     markOnlineOnConnect: true, // stay online so retry receipts are serviced promptly
-    syncFullHistory: false, // lighter, more stable session (recent history still syncs)
+    syncFullHistory: true, // pull past conversations so the agent has context
     browser: ['waagent', 'Chrome', '120.0.0'],
     qrTimeout: 60_000,
     connectTimeoutMs: 60_000,
