@@ -61,6 +61,18 @@ function getActivity(userId) {
   return activity.get(userId) || { lastIncomingAt: null, lastSentAt: null, lastResult: null, lastResultAt: null };
 }
 
+// Minimal CacheStore for Baileys' msgRetryCounterCache (tracks decryption-retry
+// counts so retry receipts are handled and resent correctly).
+function makeCache() {
+  const m = new Map();
+  return {
+    get: (k) => m.get(k),
+    set: (k, v) => { m.set(k, v); },
+    del: (k) => { m.delete(k); },
+    flushAll: () => { m.clear(); },
+  };
+}
+
 function authDir(userId) {
   return path.join(config.authRoot, userId);
 }
@@ -84,6 +96,17 @@ function reasonName(code) {
 // reconnects (notably the 515 "restartRequired" that WhatsApp sends right after
 // a successful QR scan — login only completes once a NEW socket is opened).
 async function connect(userId) {
+  // Never run two sockets for one user — a duplicate connection on the same auth
+  // corrupts the encryption session ("Waiting for this message").
+  const prev = sessions.get(userId);
+  if (prev?.sock) {
+    try {
+      prev.sock.end(undefined);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
   fs.mkdirSync(authDir(userId), { recursive: true });
   const { state: authState, saveCreds } = await useMultiFileAuthState(authDir(userId));
   const { version } = await fetchLatestBaileysVersion();
@@ -99,8 +122,10 @@ async function connect(userId) {
     qrTimeout: 60_000,
     connectTimeoutMs: 60_000,
     keepAliveIntervalMs: 25_000,
-    // Serve retry receipts so messages the recipient couldn't decrypt are
-    // re-sent instead of getting stuck on "Waiting for this message."
+    // Track decryption-retry counts and serve retry receipts so messages the
+    // recipient couldn't decrypt are re-sent instead of getting stuck on
+    // "Waiting for this message."
+    msgRetryCounterCache: makeCache(),
     getMessage: async (key) => msgCacheFor(userId).get(key?.id) || undefined,
   });
 
