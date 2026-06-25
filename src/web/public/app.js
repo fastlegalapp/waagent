@@ -177,6 +177,21 @@ const RESULT_TEXT = {
   handler_error: ['bad', 'Internal error handling the message (check logs)'],
 };
 
+function resolveResult(r) {
+  if (!r) return ['', 'no messages processed yet'];
+  if (RESULT_TEXT[r]) return RESULT_TEXT[r];
+  if (r.startsWith('no_text:')) {
+    return ['bad', `Message had no readable text (type: ${r.slice(8)})`];
+  }
+  if (r.startsWith('no_content:decrypt_failed')) {
+    return ['bad', 'Message could NOT be decrypted — broken encryption session (common with WhatsApp Business). Re-link, or use a normal WhatsApp number for the bot.'];
+  }
+  if (r.startsWith('no_content:')) {
+    return ['bad', `No message content (${r.slice(11)})`];
+  }
+  return ['', r];
+}
+
 function row(label, cls, value) {
   return `<div class="row-item"><span>${label}</span><span class="${cls}">${value}</span></div>`;
 }
@@ -188,7 +203,7 @@ function renderDiag(d) {
   const k = d.keyTest || {};
   const waOk = wa.status === 'open';
   const modeOk = s.replyMode === 'auto';
-  const [rcls, rtxt] = RESULT_TEXT[a.lastResult] || ['', a.lastResult || 'no messages processed yet'];
+  const [rcls, rtxt] = resolveResult(a.lastResult);
   const html = [
     row('WhatsApp connection', waOk ? 'good' : 'bad', waOk ? 'connected' : wa.status || 'idle'),
     row('Reply mode', modeOk ? 'good' : 'bad', s.replyMode || '—'),

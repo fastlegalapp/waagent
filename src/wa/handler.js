@@ -3,7 +3,7 @@
 const logger = require('../logger');
 const mem = require('../db/messages');
 const agent = require('../agent/agent');
-const { extractText, numberFromJid, isGroup, isIgnorable } = require('./message-utils');
+const { extractText, messageType, numberFromJid, isGroup, isIgnorable } = require('./message-utils');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -45,8 +45,13 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
   if (msg.key?.fromMe) return;
   if (isGroup(remoteJid) && settings.reply.ignoreGroups) return mark('group_ignored');
 
+  // No decryptable content at all → almost always a failed decryption (common
+  // when the other side is on WhatsApp Business) or a protocol/stub message.
+  if (!msg.message) {
+    return mark(`no_content:${msg.messageStubType ? `stub_${msg.messageStubType}` : 'decrypt_failed'}`);
+  }
   const text = extractText(msg.message);
-  if (!text) return mark('no_text');
+  if (!text) return mark(`no_text:${messageType(msg.message)}`);
 
   const number = numberFromJid(msg.key.participant || remoteJid);
   const label = `${number} (${remoteJid})`;
