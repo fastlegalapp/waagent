@@ -116,6 +116,24 @@ and the WhatsApp sessions.
 > **The `/data` volume is load-bearing.** Per-user WhatsApp link state lives
 > there. Lose it and every user has to re-scan their QR.
 
+### Deploying on other panels
+
+The same image (`ghcr.io/<owner>/waagent:latest`) runs on any Docker-based
+panel. In every case the recipe is identical: **pull the image, set the four env
+vars (`DATABASE_URL`, `SESSION_SECRET`, `ENCRYPTION_KEY`, `COOKIE_SECURE=true`),
+mount a persistent volume at `/data`, and expose port 3000.**
+
+| Panel | How |
+| --- | --- |
+| **Dokploy** | New → Application → Docker Image → set env + a volume at `/data`. Add a Postgres database from its templates and use its connection string. |
+| **CapRover** | One-Click/Custom app → set `Image Name` to the GHCR image (or deploy the Dockerfile) → add a persistent directory at `/data` → set env vars. Add a Postgres one-click app. |
+| **Portainer** | Stacks → paste `docker-compose.yml` → set the env vars in the stack editor. |
+| **Dokku** | `dokku git:from-image <app> ghcr.io/<owner>/waagent:latest`, `dokku postgres:create` + link, `dokku storage:mount <app> /var/lib/dokku/data/<app>:/data`, set config vars. |
+| **Plain Docker** | `docker run -d -p 3000:3000 -v wa_auth:/data -e DATABASE_URL=... -e SESSION_SECRET=... -e ENCRYPTION_KEY=... ghcr.io/<owner>/waagent:latest` |
+
+For private GHCR images, log the host in first:
+`docker login ghcr.io -u <user> -p <token>` (or make the package public).
+
 ## Environment variables
 
 | Variable | Purpose |
