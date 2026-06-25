@@ -120,6 +120,14 @@ and the WhatsApp sessions.
 > **The `/data` volume is load-bearing.** Per-user WhatsApp link state lives
 > there. Lose it and every user has to re-scan their QR.
 
+> **Postgres must be persistent, and `ENCRYPTION_KEY` must stay constant.**
+> User accounts and saved (encrypted) API keys live in Postgres — give the DB its
+> own persistent volume, or they vanish on redeploy. And keep `ENCRYPTION_KEY`
+> identical across deploys: change it and every stored API key becomes
+> undecryptable (the dashboard's **Test saved key** button surfaces this — it
+> makes a tiny live call to confirm the saved key is present, decryptable, and
+> valid).
+
 ### Deploying on other panels
 
 The same image (`ghcr.io/<owner>/waagent:latest`) runs on any Docker-based

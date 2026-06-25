@@ -82,6 +82,14 @@ async function connect(userId) {
     const me = sock.user?.id;
     if (me) await send(me, text);
   };
+  // Show the "typing…" indicator to the client, so replies feel human.
+  const typing = async (jid, presence) => {
+    try {
+      await sock.sendPresenceUpdate(presence, jid);
+    } catch (_) {
+      /* presence is best-effort */
+    }
+  };
 
   sock.ev.on('creds.update', saveCreds);
 
@@ -172,7 +180,7 @@ async function connect(userId) {
     if (!settings) return;
     for (const msg of messages) {
       try {
-        await handleMessage({ userId, settings, msg, send, notifyOwner });
+        await handleMessage({ userId, settings, msg, send, notifyOwner, typing });
       } catch (err) {
         logger.error({ err: err.message, userId }, 'handler error');
       }

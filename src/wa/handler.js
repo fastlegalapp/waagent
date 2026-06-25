@@ -5,6 +5,8 @@ const mem = require('../db/messages');
 const agent = require('../agent/agent');
 const { extractText, numberFromJid, isGroup, isIgnorable } = require('./message-utils');
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 function withinBusinessHours(reply) {
   const { businessHoursStart: start, businessHoursEnd: end } = reply;
   if (start == null || end == null) return true;
@@ -29,7 +31,8 @@ function isAllowed(reply, number) {
  * @param {function} ctx.send      async (jid, text) => void
  * @param {function} ctx.notifyOwner async (text) => void
  */
-async function handleMessage({ userId, settings, msg, send, notifyOwner }) {
+async function handleMessage({ userId, settings, msg, send, notifyOwner, typing }) {
+  const showTyping = typing || (async () => {});
   const remoteJid = msg.key?.remoteJid;
   if (isIgnorable(remoteJid)) return;
   if (msg.key?.fromMe) return;
@@ -54,9 +57,13 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner }) {
   }
 
   // Send a reply, THEN store it (best-effort). The message goes out even if the
-  // database write fails.
+  // database write fails. Shows a typing indicator and a short, human-like pause
+  // (scaled to message length, capped) so it doesn't feel like an instant bot.
   const reply = async (body) => {
+    await showTyping(remoteJid, 'composing');
+    await sleep(Math.min(700 + body.length * 25, 5000));
     const sent = await send(remoteJid, body);
+    await showTyping(remoteJid, 'paused');
     try {
       await mem.appendMessage(userId, remoteJid, 'assistant', body, {
         waMsgId: sent?.key?.id,

@@ -153,6 +153,19 @@ $('settingsForm').onsubmit = async (e) => {
 
 $('provider').onchange = applyProviderVisibility;
 
+$('testKeyBtn').onclick = async () => {
+  const out = $('testKeyResult');
+  out.textContent = 'Testing…';
+  try {
+    const r = await api('/api/settings/test', { method: 'POST' });
+    out.textContent = r.ok
+      ? `✅ Working (${r.provider} / ${r.model})`
+      : `❌ ${r.error || 'Failed'}`;
+  } catch (e) {
+    out.textContent = `❌ ${e.message}`;
+  }
+};
+
 // ── WhatsApp linking ─────────────────────────────────────────────────────────
 let pollTimer = null;
 

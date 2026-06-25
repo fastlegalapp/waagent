@@ -3,12 +3,27 @@
 const express = require('express');
 const settingsDb = require('../../db/settings');
 const userConfig = require('../../services/userConfig');
+const agent = require('../../agent/agent');
 const { encrypt } = require('../../auth/crypto');
 const { requireAuth } = require('../../auth/session');
 const logger = require('../../logger');
 
 const router = express.Router();
 router.use(requireAuth);
+
+// Verify the saved key for the active provider actually works (present,
+// decryptable, valid). Great for diagnosing "my key didn't persist".
+router.post('/test', async (req, res) => {
+  try {
+    const resolved = await userConfig.resolve(req.userId);
+    if (!resolved) return res.status(404).json({ ok: false, error: 'No settings found.' });
+    const result = await agent.testKey(resolved);
+    res.json(result);
+  } catch (err) {
+    logger.error({ err: err.message, userId: req.userId }, 'key test failed');
+    res.status(500).json({ ok: false, error: 'Could not run the test.' });
+  }
+});
 
 router.get('/', async (req, res) => {
   const view = await userConfig.sanitize(req.userId);

@@ -25,27 +25,30 @@ function deepseekClientFor(apiKey) {
 function buildSystemPrompt(owner) {
   const name = owner.name || 'the owner';
   return [
-    `You are the WhatsApp assistant for ${name}${owner.business ? ` of ${owner.business}` : ''}.`,
-    owner.description ? `About the business: ${owner.description}` : '',
+    `You are messaging on WhatsApp on behalf of ${name}${owner.business ? ` (${owner.business})` : ''}.`,
+    owner.description ? `Context about the work: ${owner.description}` : '',
     '',
-    'You reply to clients on WhatsApp on the owner\'s behalf. Write the way a',
-    'helpful, professional human assistant would on a phone chat: warm, concise,',
-    'and to the point. Short messages. No corporate filler, no emoji unless the',
-    'client uses them first.',
+    'Talk like a real person texting — warm, natural, human. Never sound like a',
+    'bot, a form letter, or a formal "assistant".',
     '',
-    'Rules:',
-    `- Speak as ${name}'s assistant, never claim to be ${name} personally.`,
-    '- Only state facts you are sure of. If you do not know something specific to',
-    '  this client (case details, prices, deadlines), do NOT invent it — use the',
-    '  escalate_to_human tool so a person can follow up.',
-    '- Never give binding legal, financial, or medical advice. Escalate anything',
-    '  needing the owner\'s judgement.',
-    '- If a client asks for a document, use find_document to look it up.',
-    '- If a message is hostile, a wrong number, spam, or clearly needs no reply,',
-    '  use the do_not_reply tool.',
-    '- Keep replies under ~60 words unless the client asked something detailed.',
+    'How to write:',
+    '- Text the way people actually do: short, friendly, relaxed. Use contractions.',
+    '- Mirror the other person — their language, their tone, their emoji (or lack of).',
+    '  If they write in Hindi/Spanish/etc., reply in that language.',
+    '- Keep it to a line or two. No "Dear", no "Kind regards", no bullet lists, no',
+    '  corporate phrasing. A light emoji is fine if they use them.',
+    '- Just talk. Do not announce that you are an assistant or an AI.',
+    '- Ask a natural follow-up question when it helps move things along.',
     '',
-    'Call exactly one tool when appropriate, or write the reply text to send.',
+    'Stay honest and safe:',
+    `- Never invent specifics you don't actually know (prices, dates, case details).`,
+    `  If you're not sure, say you'll check and use escalate_to_human.`,
+    `- No binding legal, financial, or medical advice — escalate anything that needs`,
+    `  ${name}'s real judgement.`,
+    '- If they ask for a document, use find_document.',
+    '- Spam, wrong numbers, or anything not worth a reply → do_not_reply.',
+    '',
+    'Reply with the message to send, or call exactly one tool.',
   ]
     .filter((l) => l != null)
     .join('\n');
@@ -255,4 +258,30 @@ async function decide(settings, history, incomingText) {
   return decideAnthropic(settings, history, incomingText);
 }
 
-module.exports = { decide };
+// Make a tiny live call to verify the user's saved key for the active provider
+// is present, decryptable, and valid. Used by the dashboard "Test key" button.
+async function testKey(settings) {
+  if (!settings?.ai?.apiKey) {
+    return { ok: false, error: `No usable API key for provider "${settings?.ai?.provider}". If you did save one, it may not have persisted (check the database volume) or ENCRYPTION_KEY changed.` };
+  }
+  try {
+    if (settings.ai.provider === 'deepseek') {
+      await deepseekClientFor(settings.ai.apiKey).chat.completions.create({
+        model: settings.ai.model,
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'ping' }],
+      });
+    } else {
+      await anthropicClientFor(settings.ai.apiKey).messages.create({
+        model: settings.ai.model,
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'ping' }],
+      });
+    }
+    return { ok: true, provider: settings.ai.provider, model: settings.ai.model };
+  } catch (err) {
+    return { ok: false, provider: settings.ai.provider, error: err.message };
+  }
+}
+
+module.exports = { decide, testKey };
