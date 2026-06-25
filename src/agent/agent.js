@@ -148,20 +148,17 @@ async function decideAnthropic(settings, history, incomingText) {
   ];
 
   for (let i = 0; i < 4; i += 1) {
-    let response;
-    try {
-      response = await client.messages.create({
+    const response = await client.messages.create(
+      {
         model: settings.ai.model,
         max_tokens: 400,
         thinking: { type: 'adaptive' },
         system: buildSystemPrompt(settings.owner),
         tools,
         messages,
-      });
-    } catch (err) {
-      logger.error({ err: err.message, userId: settings.userId }, 'Claude request failed');
-      return { action: 'escalate', reason: 'AI request failed', text: '' };
-    }
+      },
+      { timeout: 60_000 },
+    );
 
     if (response.stop_reason === 'refusal') {
       return { action: 'escalate', reason: 'AI declined to respond', text: '' };
@@ -209,19 +206,16 @@ async function decideDeepSeek(settings, history, incomingText) {
   ];
 
   for (let i = 0; i < 4; i += 1) {
-    let resp;
-    try {
-      resp = await client.chat.completions.create({
+    const resp = await client.chat.completions.create(
+      {
         model: settings.ai.model,
         max_tokens: 400,
         tools: openaiTools,
         tool_choice: 'auto',
         messages,
-      });
-    } catch (err) {
-      logger.error({ err: err.message, userId: settings.userId }, 'DeepSeek request failed');
-      return { action: 'escalate', reason: 'AI request failed', text: '' };
-    }
+      },
+      { timeout: 60_000 },
+    );
 
     const msg = resp.choices?.[0]?.message;
     if (!msg) return { action: 'escalate', reason: 'Empty AI response', text: '' };
@@ -260,11 +254,61 @@ async function decideDeepSeek(settings, history, incomingText) {
  * @param {string} incomingText
  * @returns {Promise<{action:'reply'|'escalate'|'ignore', text?:string, reason?:string}>}
  */
-async function decide(settings, history, incomingText) {
+const FRIENDLY_FALLBACK = "hey, give me a moment — I'll get right back to you 🙏";
+
+// Last-resort reply with no tools and no thinking. Works even on models that
+// don't support function calling (e.g. deepseek-reasoner) and rides out most
+// transient API errors, so the client always gets a real answer.
+async function plainReply(settings, history, incomingText) {
+  const sys = buildSystemPrompt(settings.owner);
+  const hist = history.map((m) => ({ role: m.role, content: m.content }));
   if (settings.ai.provider === 'deepseek') {
-    return decideDeepSeek(settings, history, incomingText);
+    const resp = await deepseekClientFor(settings.ai.apiKey).chat.completions.create(
+      {
+        model: settings.ai.model,
+        max_tokens: 400,
+        messages: [{ role: 'system', content: sys }, ...hist, { role: 'user', content: incomingText }],
+      },
+      { timeout: 60_000 },
+    );
+    return (resp.choices?.[0]?.message?.content || '').trim();
   }
-  return decideAnthropic(settings, history, incomingText);
+  const resp = await anthropicClientFor(settings.ai.apiKey).messages.create(
+    {
+      model: settings.ai.model,
+      max_tokens: 400,
+      system: sys,
+      messages: [...hist, { role: 'user', content: incomingText }],
+    },
+    { timeout: 60_000 },
+  );
+  return resp.content
+    .filter((b) => b.type === 'text')
+    .map((b) => b.text)
+    .join('')
+    .trim();
+}
+
+async function decide(settings, history, incomingText) {
+  try {
+    return settings.ai.provider === 'deepseek'
+      ? await decideDeepSeek(settings, history, incomingText)
+      : await decideAnthropic(settings, history, incomingText);
+  } catch (err) {
+    logger.error(
+      { err: err.message, userId: settings.userId, provider: settings.ai.provider },
+      'agent decide failed — falling back to a plain reply',
+    );
+    // The full tool/thinking call failed (model/tool incompatibility, transient
+    // API error, timeout). Try a plain reply so the client still gets answered.
+    try {
+      const text = await plainReply(settings, history, incomingText);
+      if (text) return { action: 'reply', text };
+    } catch (err2) {
+      logger.error({ err: err2.message, userId: settings.userId }, 'plain reply also failed');
+    }
+    return { action: 'escalate', reason: 'AI unavailable', text: FRIENDLY_FALLBACK };
+  }
 }
 
 // Make a tiny live call to verify the user's saved key for the active provider
