@@ -1,113 +1,120 @@
-# waagent — your personal WhatsApp agent
+# waagent — multi-tenant WhatsApp AI assistant
 
-An AI assistant that links to **your own WhatsApp** (via the QR "Linked devices"
-flow — *not* the WhatsApp Business API) and replies to clients and runs tasks on
-your behalf, powered by Claude.
+A small SaaS where **multiple users** sign up, link **their own** WhatsApp number
+(via a QR code shown in the browser — *not* the WhatsApp Business API), bring
+**their own** Claude API key, and let an AI agent auto-reply to their clients.
 
 > ⚠️ **Heads up:** This connects through WhatsApp Web using an unofficial library
-> ([Baileys](https://github.com/WhiskeySockets/Baileys)). It is great for a
-> personal/solo setup, but automating a personal account is against WhatsApp's
-> Terms of Service and carries a (small but real) risk of a ban. Use a number you
-> can afford to risk, keep auto-replies human and low-volume, and start in
-> `REPLY_MODE=off` to watch it before letting it send anything.
+> ([Baileys](https://github.com/WhiskeySockets/Baileys)). Automating a personal
+> WhatsApp account is against WhatsApp's Terms of Service and carries a (small but
+> real) ban risk. Each user should use a number they can afford to risk and keep
+> auto-replies human and low-volume. New accounts default to **reply mode "off"**
+> (log only) so nothing is sent until the user opts in.
 
-## What it does today (Phase 1)
+## What's included
 
-- Links to your WhatsApp by QR code and stays connected.
-- Reads incoming 1:1 client messages.
-- Uses Claude to draft and send a professional reply on your behalf.
-- **Safeguards built in:**
-  - Allowlist / blocklist of contacts.
-  - Ignores group chats (configurable).
-  - Never replies to your own messages.
-  - Min interval between replies per chat (loop/spam guard).
-  - Optional business hours → sends a holding message after hours.
-  - **Escalation:** when unsure, the agent pings *you* (a message to yourself)
-    and sends the client a polite "I'll get back to you" instead of guessing.
-  - Remembers each conversation across restarts.
+- **Accounts & login** — open email/password signup, bcrypt-hashed passwords,
+  JWT session cookie (httpOnly).
+- **Per-user isolation** — each user has their own settings, conversation
+  memory, and a dedicated WhatsApp session. No data crosses tenants.
+- **Bring your own key** — each user pastes their Anthropic API key in settings;
+  it's stored **AES-256-GCM encrypted** at rest. You carry zero AI cost.
+- **Web dashboard** — link/unlink WhatsApp (QR in the browser), configure the
+  agent (identity, model, reply mode, allow/blocklist, business hours).
+- **The agent** — Claude (default `claude-opus-4-8`) drafts professional replies,
+  escalates to the user when unsure, and stays silent on spam.
+- **Google Drive** — scaffolded as a per-user Phase 2 stub.
 
-## What's coming (Phase 2)
+## Architecture
 
-- **Google Drive:** let the agent fetch a requested document from your Drive and
-  send it to the client, and upload documents clients send you. The hooks are
-  already in place (`src/tools/drive.js`) but inert until you connect Drive.
+```
+Browser (dashboard)
+   │  signup / login (JWT cookie)         ┌───────────────────────────┐
+   ├─────────────────────────────────────►│  Express API (src/web)    │
+   │  link WhatsApp (poll QR + status)    │  auth · settings · wa     │
+   │                                      └───────────┬───────────────┘
+   │                                                  │
+   ▼                                                  ▼
+ PostgreSQL  ◄── users, settings, messages   Session manager (src/wa)
+ (src/db)        (encrypted API keys)         one Baileys socket / user
+                                                      │
+ each user's WhatsApp ──QR link──────────────────────┘
+                                              messages → per-user handler → Claude
+```
+
+- `src/web/` — Express server, routes, and the static dashboard (`public/`).
+- `src/auth/` — password hashing, API-key encryption, JWT sessions.
+- `src/db/` — PostgreSQL pool, schema, and query modules.
+- `src/wa/` — multi-tenant session manager (one socket per user) + message handler.
+- `src/agent/` — the Claude brain (parameterised per user) + Drive stub.
+- `src/services/userConfig.js` — resolves a user's stored settings into runtime config.
 
 ## Setup
 
-Requires **Node.js 20+**.
+Requires **Node.js 20+** and a **PostgreSQL** database.
 
 ```bash
 npm install
 cp .env.example .env
-# edit .env — at minimum set ANTHROPIC_API_KEY and your owner/business details
+# edit .env: set DATABASE_URL, SESSION_SECRET, ENCRYPTION_KEY
+# generate secrets with:  openssl rand -hex 32
 ```
 
-Get a Claude API key at <https://console.anthropic.com/>.
-
-### First run (recommended: dry run first)
-
-Set `REPLY_MODE=off` in `.env`, then:
+The schema is created automatically on first boot (or run `npm run migrate`).
 
 ```bash
 npm start
 ```
 
-A QR code prints in the terminal. On your phone: **WhatsApp → Settings →
-Linked devices → Link a device**, and scan it. The agent will now **log**
-incoming messages without sending anything, so you can confirm it sees the right
-chats.
+Open <http://localhost:3000>, create an account, then:
 
-When you're happy, set `REPLY_MODE=auto` and restart. Consider setting
-`ALLOWLIST` to one or two test numbers first.
+1. **Settings** → paste your Anthropic API key (from
+   <https://console.anthropic.com/>) and fill in your name/business.
+2. **Your WhatsApp** → click *Link / Connect* and scan the QR with
+   **WhatsApp → Settings → Linked devices → Link a device**.
+3. Leave reply mode on **Off** at first to watch it log incoming messages, then
+   switch to **Auto** when you're happy (consider setting an allowlist first).
 
-## Configuration
+## Environment variables
 
-All configuration is in `.env` (see `.env.example` for the full annotated list).
-Highlights:
-
-| Variable | What it does |
+| Variable | Purpose |
 | --- | --- |
-| `ANTHROPIC_API_KEY` | Your Claude API key (required). |
-| `ANTHROPIC_MODEL` | Model id. Default `claude-opus-4-8`. Use `claude-sonnet-4-6` or `claude-haiku-4-5` for cheaper, faster replies. |
-| `OWNER_NAME` / `BUSINESS_NAME` / `BUSINESS_DESCRIPTION` | Identity & context the agent uses when replying. |
-| `REPLY_MODE` | `auto` (reply) or `off` (log only). |
-| `ALLOWLIST` / `BLOCKLIST` | Contact numbers (country code, digits only). |
-| `IGNORE_GROUPS` | Skip group chats (default `true`). |
-| `MIN_REPLY_INTERVAL_SECONDS` | Rate limit per chat. |
-| `BUSINESS_HOURS_START` / `_END` | Optional after-hours holding message. |
+| `DATABASE_URL` | PostgreSQL connection string (append `?sslmode=require` for most managed providers). |
+| `SESSION_SECRET` | Signs login cookies. Long random string. |
+| `ENCRYPTION_KEY` | Encrypts users' API keys at rest. Long random string. **Changing it invalidates all stored keys.** |
+| `PORT` | Web server port (default 3000). |
+| `COOKIE_SECURE` | `true` when served over HTTPS. |
+| `AUTH_ROOT` | Where per-user WhatsApp sessions are stored on disk (default `./auth`). |
+| `DEFAULT_MODEL` | Model offered to new users (default `claude-opus-4-8`). |
 
-## How it works
+## Data model (PostgreSQL)
 
-```
-WhatsApp (your phone)
-        │  QR link (WhatsApp Web protocol)
-        ▼
-  Baileys socket  ──►  message handler  ──►  Claude (agent.js)
-   (src/whatsapp.js)   (safeguards,           ├─ replies, or
-                        memory, routing)       ├─ escalates to you, or
-                                               └─ stays silent
-```
+- `users` — id, email, bcrypt password hash.
+- `user_settings` — identity, **encrypted** Anthropic key, model, reply rules.
+- `messages` — per-user, per-chat conversation memory.
+- `chat_state` — last-reply timestamps for rate limiting.
 
-- `src/whatsapp.js` — connection, QR, reconnect, send/notify helpers.
-- `src/handlers/message.js` — safeguards, business hours, routing.
-- `src/agent.js` — the Claude brain (tool-using agent: `find_document`,
-  `escalate_to_human`, `do_not_reply`).
-- `src/store/memory.js` — per-chat conversation memory (JSON on disk).
-- `src/tools/drive.js` — Google Drive integration (Phase 2 stub).
+## Security notes
 
-## Security & privacy notes
+- Passwords are bcrypt-hashed; API keys are AES-256-GCM encrypted. Keep
+  `SESSION_SECRET` and `ENCRYPTION_KEY` safe and out of source control.
+- Each user's linked WhatsApp session lives under `auth/<userId>/` (gitignored).
+  Anyone with that folder can act as that user's WhatsApp — protect the host.
+- Before going to production: serve over HTTPS (`COOKIE_SECURE=true`), add rate
+  limiting on the auth endpoints, email verification, and database backups.
 
-- Your linked WhatsApp session lives in `auth_info_baileys/` — **never commit
-  it** (already in `.gitignore`). Anyone with that folder can act as your
-  WhatsApp.
-- Conversation history is stored in plain JSON under `data/`. Treat it as
-  sensitive client data.
-- The agent is instructed never to invent client-specific facts and to escalate
-  anything needing real judgement — but you are responsible for reviewing its
-  behaviour, especially in a regulated field.
+## Scaling note
+
+The session manager runs every user's WhatsApp socket **in this one Node
+process**, which is great up to a few hundred active users on a single server.
+Beyond that, shard users across worker processes/instances (e.g. by user-id hash)
+and move WhatsApp auth state into shared storage. The DB layer is already
+multi-instance-safe.
 
 ## Roadmap
 
-- [x] Phase 1 — auto-reply to clients with safeguards + escalation
-- [ ] Phase 2 — Google Drive: send requested documents, upload received files
-- [ ] Phase 3 — richer task handling (scheduling, CRM lookups), per-client notes
+- [x] Multi-tenant accounts, login, per-user WhatsApp + settings
+- [x] Bring-your-own encrypted Claude API key
+- [ ] Email verification + password reset
+- [ ] Google Drive: send requested documents, upload received files (per user)
+- [ ] Usage dashboard & billing

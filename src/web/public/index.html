@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>waagent — WhatsApp AI assistant</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">waagent</div>
+      <div id="userbar" class="userbar hidden">
+        <span id="userEmail"></span>
+        <button id="logoutBtn" class="link">Sign out</button>
+      </div>
+    </header>
+
+    <main class="container">
+      <!-- AUTH VIEW -->
+      <section id="authView" class="card auth hidden">
+        <div class="tabs">
+          <button id="tabLogin" class="tab active">Sign in</button>
+          <button id="tabSignup" class="tab">Create account</button>
+        </div>
+        <form id="authForm">
+          <label>Email<input type="email" id="email" autocomplete="email" required /></label>
+          <label>Password
+            <input type="password" id="password" autocomplete="current-password" minlength="8" required />
+          </label>
+          <p class="hint" id="authHint">Use at least 8 characters.</p>
+          <p class="error" id="authError"></p>
+          <button type="submit" id="authSubmit" class="primary">Sign in</button>
+        </form>
+      </section>
+
+      <!-- APP VIEW -->
+      <section id="appView" class="hidden">
+        <!-- WhatsApp linking -->
+        <div class="card">
+          <h2>Your WhatsApp</h2>
+          <p class="muted">Link your own WhatsApp number. Scan the QR with
+            <strong>WhatsApp → Settings → Linked devices → Link a device</strong>.</p>
+          <div class="wa-status">
+            Status: <span id="waStatus" class="badge">idle</span>
+          </div>
+          <div id="qrWrap" class="qr-wrap hidden">
+            <img id="qrImg" alt="WhatsApp QR code" />
+            <p class="muted">QR refreshes automatically. It expires after ~20s.</p>
+          </div>
+          <div class="row">
+            <button id="waStartBtn" class="primary">Link / Connect</button>
+            <button id="waStopBtn" class="ghost">Disconnect</button>
+            <button id="waLogoutBtn" class="danger">Unlink</button>
+          </div>
+        </div>
+
+        <!-- Settings -->
+        <div class="card">
+          <h2>Agent settings</h2>
+          <form id="settingsForm">
+            <fieldset>
+              <legend>Claude API</legend>
+              <label>Your Anthropic API key
+                <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off" />
+              </label>
+              <p class="hint" id="apiKeyHint">Stored encrypted. Leave blank to keep the current key.</p>
+              <label>Model
+                <select id="model">
+                  <option value="claude-opus-4-8">Claude Opus 4.8 (smartest)</option>
+                  <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (balanced)</option>
+                  <option value="claude-haiku-4-5">Claude Haiku 4.5 (fastest/cheapest)</option>
+                </select>
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>Identity</legend>
+              <label>Your name<input type="text" id="ownerName" /></label>
+              <label>Business name<input type="text" id="businessName" /></label>
+              <label>What your business does
+                <textarea id="businessDescription" rows="3"></textarea>
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>Replies</legend>
+              <label>Mode
+                <select id="replyMode">
+                  <option value="off">Off — log only (safe dry run)</option>
+                  <option value="auto">Auto — reply to clients</option>
+                </select>
+              </label>
+              <label class="check">
+                <input type="checkbox" id="ignoreGroups" /> Ignore group chats
+              </label>
+              <label>Allowlist (numbers, comma-separated; blank = everyone)
+                <input type="text" id="allowlist" placeholder="15551234567, 447700900000" />
+              </label>
+              <label>Blocklist
+                <input type="text" id="blocklist" placeholder="" />
+              </label>
+              <div class="grid2">
+                <label>Min seconds between replies
+                  <input type="number" id="minIntervalSeconds" min="0" max="3600" />
+                </label>
+              </div>
+              <div class="grid2">
+                <label>Business hours start (0–23, blank = always on)
+                  <input type="number" id="businessHoursStart" min="0" max="23" />
+                </label>
+                <label>Business hours end (0–23)
+                  <input type="number" id="businessHoursEnd" min="0" max="23" />
+                </label>
+              </div>
+            </fieldset>
+
+            <p class="error" id="settingsError"></p>
+            <p class="ok" id="settingsOk"></p>
+            <button type="submit" class="primary">Save settings</button>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,176 @@
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const {
+  default: makeWASocket,
+  useMultiFileAuthState,
+  fetchLatestBaileysVersion,
+  DisconnectReason,
+} = require('@whiskeysockets/baileys');
+const QRCode = require('qrcode');
+const pino = require('pino');
+
+const { config } = require('../config');
+const logger = require('../logger');
+const userConfig = require('../services/userConfig');
+const { handleMessage } = require('./handler');
+
+const baileysLogger = pino({ level: 'silent' });
+
+// userId -> { sock, status, qr, startedAt }
+// status: 'connecting' | 'qr' | 'open' | 'closed' | 'logged_out'
+const sessions = new Map();
+
+function authDir(userId) {
+  return path.join(config.authRoot, userId);
+}
+
+function state(userId) {
+  const s = sessions.get(userId);
+  return s
+    ? { status: s.status, qr: s.qr || null }
+    : { status: 'idle', qr: null };
+}
+
+function hasLinkedSession(userId) {
+  // creds.json exists once the device has been linked at least once.
+  return fs.existsSync(path.join(authDir(userId), 'creds.json'));
+}
+
+async function start(userId) {
+  const existing = sessions.get(userId);
+  if (existing && ['connecting', 'qr', 'open'].includes(existing.status)) {
+    return state(userId);
+  }
+
+  fs.mkdirSync(authDir(userId), { recursive: true });
+  const { state: authState, saveCreds } = await useMultiFileAuthState(authDir(userId));
+  const { version } = await fetchLatestBaileysVersion();
+
+  const sock = makeWASocket({
+    version,
+    auth: authState,
+    logger: baileysLogger,
+    printQRInTerminal: false,
+    markOnlineOnConnect: false,
+    syncFullHistory: false,
+  });
+
+  const entry = { sock, status: 'connecting', qr: null, startedAt: Date.now() };
+  sessions.set(userId, entry);
+
+  const send = async (jid, text) => {
+    try {
+      await sock.sendMessage(jid, { text });
+    } catch (err) {
+      logger.error({ err: err.message, userId, jid }, 'failed to send');
+    }
+  };
+  const notifyOwner = async (text) => {
+    const me = sock.user?.id;
+    if (me) await send(me, text);
+  };
+
+  sock.ev.on('creds.update', saveCreds);
+
+  sock.ev.on('connection.update', async (update) => {
+    const { connection, lastDisconnect, qr } = update;
+
+    if (qr) {
+      try {
+        entry.qr = await QRCode.toDataURL(qr);
+        entry.status = 'qr';
+      } catch (err) {
+        logger.error({ err: err.message, userId }, 'failed to render QR');
+      }
+    }
+
+    if (connection === 'open') {
+      entry.status = 'open';
+      entry.qr = null;
+      logger.info({ userId, waUser: sock.user?.id }, 'WhatsApp connected');
+    }
+
+    if (connection === 'close') {
+      const code = lastDisconnect?.error?.output?.statusCode;
+      if (code === DisconnectReason.loggedOut) {
+        entry.status = 'logged_out';
+        sessions.delete(userId);
+        try {
+          fs.rmSync(authDir(userId), { recursive: true, force: true });
+        } catch (_) {
+          /* ignore */
+        }
+        logger.warn({ userId }, 'WhatsApp logged out — link removed');
+      } else {
+        entry.status = 'connecting';
+        logger.warn({ userId, code }, 'connection closed — reconnecting');
+        setTimeout(() => start(userId).catch(() => {}), 2000);
+      }
+    }
+  });
+
+  sock.ev.on('messages.upsert', async ({ messages, type }) => {
+    if (type !== 'notify') return;
+    // Reload settings per batch so config changes take effect without restart.
+    let settings;
+    try {
+      settings = await userConfig.resolve(userId);
+    } catch (err) {
+      logger.error({ err: err.message, userId }, 'failed to load settings');
+      return;
+    }
+    if (!settings) return;
+    for (const msg of messages) {
+      try {
+        await handleMessage({ userId, settings, msg, send, notifyOwner });
+      } catch (err) {
+        logger.error({ err: err.message, userId }, 'handler error');
+      }
+    }
+  });
+
+  return state(userId);
+}
+
+// Disconnect but keep the link (creds on disk) so it can resume.
+async function stop(userId) {
+  const s = sessions.get(userId);
+  if (s?.sock) {
+    try {
+      s.sock.end(undefined);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+  sessions.delete(userId);
+  return { status: 'closed', qr: null };
+}
+
+// Fully unlink: disconnect and delete the stored session.
+async function logout(userId) {
+  await stop(userId);
+  try {
+    fs.rmSync(authDir(userId), { recursive: true, force: true });
+  } catch (_) {
+    /* ignore */
+  }
+  return { status: 'idle', qr: null };
+}
+
+// On boot, resume sessions for users who had previously linked a device.
+async function resumeAll(userIds) {
+  for (const userId of userIds) {
+    if (hasLinkedSession(userId)) {
+      try {
+        await start(userId);
+        logger.info({ userId }, 'resumed WhatsApp session');
+      } catch (err) {
+        logger.error({ err: err.message, userId }, 'failed to resume session');
+      }
+    }
+  }
+}
+
+module.exports = { start, stop, logout, state, hasLinkedSession, resumeAll };

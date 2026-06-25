@@ -1,17 +1,21 @@
 'use strict';
 
 const Anthropic = require('@anthropic-ai/sdk');
-const { config } = require('./config');
-const logger = require('./logger');
+const logger = require('../logger');
 const drive = require('./tools/drive');
 
-const client = new Anthropic({ apiKey: config.anthropic.apiKey });
+// Cache one Anthropic client per API key so we don't rebuild it per message.
+const clients = new Map();
+function clientFor(apiKey) {
+  if (!clients.has(apiKey)) clients.set(apiKey, new Anthropic({ apiKey }));
+  return clients.get(apiKey);
+}
 
-function buildSystemPrompt() {
-  const { name, business, description } = config.owner;
+function buildSystemPrompt(owner) {
+  const name = owner.name || 'the owner';
   return [
-    `You are the WhatsApp assistant for ${name}${business ? ` of ${business}` : ''}.`,
-    description ? `About the business: ${description}` : '',
+    `You are the WhatsApp assistant for ${name}${owner.business ? ` of ${owner.business}` : ''}.`,
+    owner.description ? `About the business: ${owner.description}` : '',
     '',
     'You reply to clients on WhatsApp on the owner\'s behalf. Write the way a',
     'helpful, professional human assistant would on a phone chat: warm, concise,',
@@ -22,19 +26,17 @@ function buildSystemPrompt() {
     `- Speak as ${name}'s assistant, never claim to be ${name} personally.`,
     '- Only state facts you are sure of. If you do not know something specific to',
     '  this client (case details, prices, deadlines), do NOT invent it — use the',
-    '  escalate_to_human tool so a person can follow up, and tell the client you',
-    '  will have someone get back to them shortly.',
-    '- Never give binding legal, financial, or medical advice. For anything that',
-    '  needs the owner\'s judgement, escalate.',
+    '  escalate_to_human tool so a person can follow up.',
+    '- Never give binding legal, financial, or medical advice. Escalate anything',
+    '  needing the owner\'s judgement.',
     '- If a client asks for a document, use find_document to look it up.',
     '- If a message is hostile, a wrong number, spam, or clearly needs no reply,',
     '  use the do_not_reply tool.',
     '- Keep replies under ~60 words unless the client asked something detailed.',
     '',
-    'You decide the outcome by calling exactly one tool when appropriate, or by',
-    'simply writing the reply text to send to the client.',
+    'Call exactly one tool when appropriate, or write the reply text to send.',
   ]
-    .filter((line) => line !== null && line !== undefined)
+    .filter((l) => l != null)
     .join('\n');
 }
 
@@ -42,15 +44,12 @@ const tools = [
   {
     name: 'find_document',
     description:
-      'Look up a document the client has requested (e.g. a contract, invoice, ' +
-      'form) so it can be sent to them. Use when the client asks for a file.',
+      'Look up a document the client has requested (contract, invoice, form) so ' +
+      'it can be sent to them. Use when the client asks for a file.',
     input_schema: {
       type: 'object',
       properties: {
-        query: {
-          type: 'string',
-          description: 'What the client is asking for, e.g. "tenancy agreement" or "their invoice".',
-        },
+        query: { type: 'string', description: 'What the client is asking for.' },
       },
       required: ['query'],
       additionalProperties: false,
@@ -59,18 +58,15 @@ const tools = [
   {
     name: 'escalate_to_human',
     description:
-      'Flag this conversation for the owner to handle personally. Use when you ' +
-      'are unsure, the request needs the owner\'s judgement, or the client asks ' +
-      'for something you cannot safely answer.',
+      'Flag this conversation for the owner. Use when unsure, the request needs ' +
+      'the owner\'s judgement, or you cannot safely answer.',
     input_schema: {
       type: 'object',
       properties: {
         reason: { type: 'string', description: 'Why this needs a human.' },
         reply_to_client: {
           type: 'string',
-          description:
-            'A short holding message to send the client now (e.g. "Let me check ' +
-            'with the team and get right back to you").',
+          description: 'A short holding message to send the client now.',
         },
       },
       required: ['reason', 'reply_to_client'],
@@ -93,57 +89,51 @@ const tools = [
   },
 ];
 
-async function runTool(name, input) {
+async function runTool(name, input, settings) {
   if (name === 'find_document') {
-    const result = await drive.findDocument(input.query);
-    return JSON.stringify(result);
+    return JSON.stringify(await drive.findDocument(settings, input.query));
   }
-  // escalate_to_human and do_not_reply are terminal — handled by the caller.
   return JSON.stringify({ ok: true });
 }
 
 /**
- * Decide how to handle one incoming client message.
+ * Decide how to handle one incoming client message for a given user.
  *
- * @param {Array<{role:'user'|'assistant', content:string}>} history
+ * @param {object} settings  resolved user config (owner, anthropic.{apiKey,model})
+ * @param {Array<{role,content}>} history
  * @param {string} incomingText
  * @returns {Promise<{action:'reply'|'escalate'|'ignore', text?:string, reason?:string}>}
  */
-async function decide(history, incomingText) {
+async function decide(settings, history, incomingText) {
+  const client = clientFor(settings.anthropic.apiKey);
   const messages = [
     ...history.map((m) => ({ role: m.role, content: m.content })),
     { role: 'user', content: incomingText },
   ];
 
-  // Agentic loop: let Claude call find_document, then produce a final outcome.
   for (let i = 0; i < 4; i += 1) {
     let response;
     try {
       response = await client.messages.create({
-        model: config.anthropic.model,
+        model: settings.anthropic.model,
         max_tokens: 1024,
         thinking: { type: 'adaptive' },
-        system: buildSystemPrompt(),
+        system: buildSystemPrompt(settings.owner),
         tools,
         messages,
       });
     } catch (err) {
-      logger.error({ err: err.message }, 'Claude request failed');
+      logger.error({ err: err.message, userId: settings.userId }, 'Claude request failed');
       return { action: 'escalate', reason: 'AI request failed', text: '' };
     }
 
     if (response.stop_reason === 'refusal') {
-      return {
-        action: 'escalate',
-        reason: 'AI declined to respond to this message',
-        text: '',
-      };
+      return { action: 'escalate', reason: 'AI declined to respond', text: '' };
     }
 
     const toolUses = response.content.filter((b) => b.type === 'tool_use');
 
     if (toolUses.length === 0) {
-      // Plain text reply.
       const text = response.content
         .filter((b) => b.type === 'text')
         .map((b) => b.text)
@@ -152,7 +142,6 @@ async function decide(history, incomingText) {
       return { action: 'reply', text };
     }
 
-    // Handle terminal tools immediately.
     const escalate = toolUses.find((t) => t.name === 'escalate_to_human');
     if (escalate) {
       return {
@@ -162,21 +151,17 @@ async function decide(history, incomingText) {
       };
     }
     const skip = toolUses.find((t) => t.name === 'do_not_reply');
-    if (skip) {
-      return { action: 'ignore', reason: skip.input.reason };
-    }
+    if (skip) return { action: 'ignore', reason: skip.input.reason };
 
-    // Otherwise run the (non-terminal) tools and feed results back.
     messages.push({ role: 'assistant', content: response.content });
     const toolResults = [];
     for (const t of toolUses) {
-      const out = await runTool(t.name, t.input);
+      const out = await runTool(t.name, t.input, settings);
       toolResults.push({ type: 'tool_result', tool_use_id: t.id, content: out });
     }
     messages.push({ role: 'user', content: toolResults });
   }
 
-  // Loop exhausted without a final answer — fail safe to a human.
   return {
     action: 'escalate',
     reason: 'Could not resolve the request automatically',

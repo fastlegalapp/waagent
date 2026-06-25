@@ -2,26 +2,32 @@
 
 const { validate, config } = require('./config');
 const logger = require('./logger');
-const { start } = require('./whatsapp');
+const { migrate } = require('./db/migrate');
+const { listen } = require('./web/server');
+const users = require('./db/users');
+const manager = require('./wa/sessionManager');
 
 async function main() {
   const errors = validate();
   if (errors.length) {
     for (const e of errors) logger.error(e);
+    logger.error('Fix the above in your .env, then restart. See .env.example.');
     process.exit(1);
   }
 
-  logger.info(
-    {
-      model: config.anthropic.model,
-      replyMode: config.reply.mode,
-      allowlist: config.reply.allowlist.length || 'any',
-      driveEnabled: config.drive.enabled,
-    },
-    'Starting waagent...',
-  );
+  logger.info({ env: config.env, port: config.port }, 'Starting waagent...');
 
-  await start();
+  await migrate();
+  await listen();
+
+  // Resume WhatsApp sessions for users who had already linked a device, so a
+  // server restart reconnects them without re-scanning the QR.
+  try {
+    const ids = await users.listIds();
+    await manager.resumeAll(ids);
+  } catch (err) {
+    logger.error({ err: err.message }, 'failed to resume sessions on boot');
+  }
 }
 
 process.on('unhandledRejection', (err) => {
