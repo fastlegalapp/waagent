@@ -6,15 +6,24 @@ const MAX_TURNS = 30; // bound history per chat to control token usage
 
 // Append one message. `opts` may carry { waMsgId, ts }. Live messages pass the
 // WhatsApp id so they dedupe against the history sync; internal rows omit it.
+// Falls back to a basic insert if the newer columns/index aren't present yet
+// (e.g. a migration that hasn't fully applied) so persistence never blocks a reply.
 async function appendMessage(userId, chatId, role, content, opts = {}) {
   const waMsgId = opts.waMsgId || null;
   const ts = Number.isFinite(opts.ts) ? Math.floor(opts.ts) : Math.floor(Date.now() / 1000);
-  await query(
-    `INSERT INTO messages (user_id, chat_id, role, content, wa_msg_id, ts)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     ON CONFLICT (user_id, wa_msg_id) DO NOTHING`,
-    [userId, chatId, role, content, waMsgId, ts],
-  );
+  try {
+    await query(
+      `INSERT INTO messages (user_id, chat_id, role, content, wa_msg_id, ts)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (user_id, wa_msg_id) DO NOTHING`,
+      [userId, chatId, role, content, waMsgId, ts],
+    );
+  } catch (err) {
+    await query(
+      `INSERT INTO messages (user_id, chat_id, role, content) VALUES ($1, $2, $3, $4)`,
+      [userId, chatId, role, content],
+    );
+  }
 }
 
 // Bulk import (history sync). rows: [{userId, chatId, role, content, waMsgId, ts}].
@@ -45,19 +54,32 @@ async function appendMany(rows) {
 // timestamp (so imported history sorts correctly relative to live messages),
 // falling back to insertion id.
 async function getHistory(userId, chatId) {
-  const { rows } = await query(
-    `SELECT role, content FROM (
-       SELECT role, content, ts, id FROM messages
+  try {
+    const { rows } = await query(
+      `SELECT role, content FROM (
+         SELECT role, content, ts, id FROM messages
+         WHERE user_id = $1 AND chat_id = $2
+         ORDER BY ts DESC, id DESC
+         LIMIT $3
+       ) recent
+       ORDER BY ts ASC, id ASC`,
+      [userId, chatId, MAX_TURNS],
+    );
+    const history = rows;
+    while (history.length && history[0].role !== 'user') history.shift();
+    return history;
+  } catch (err) {
+    // Fall back to id ordering if the ts column isn't present yet.
+    const { rows } = await query(
+      `SELECT role, content FROM messages
        WHERE user_id = $1 AND chat_id = $2
-       ORDER BY ts DESC, id DESC
-       LIMIT $3
-     ) recent
-     ORDER BY ts ASC, id ASC`,
-    [userId, chatId, MAX_TURNS],
-  );
-  const history = rows;
-  while (history.length && history[0].role !== 'user') history.shift();
-  return history;
+       ORDER BY id DESC LIMIT $3`,
+      [userId, chatId, MAX_TURNS],
+    );
+    const history = rows.reverse();
+    while (history.length && history[0].role !== 'user') history.shift();
+    return history;
+  }
 }
 
 async function getLastReplyAt(userId, chatId) {

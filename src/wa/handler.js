@@ -43,22 +43,29 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner }) {
   const msgTs = Number(msg.messageTimestamp) || Math.floor(Date.now() / 1000);
 
   logger.info({ userId, from: number, text }, 'incoming');
-  // Tag with the WhatsApp id/timestamp so it dedupes against history sync and
-  // sorts chronologically alongside imported history.
-  await mem.appendMessage(userId, remoteJid, 'user', text, {
-    waMsgId: msg.key.id,
-    ts: msgTs,
-  });
+  // Persistence is best-effort — a DB hiccup must never stop the agent replying.
+  try {
+    await mem.appendMessage(userId, remoteJid, 'user', text, {
+      waMsgId: msg.key.id,
+      ts: msgTs,
+    });
+  } catch (err) {
+    logger.error({ err: err.message, userId }, 'failed to store incoming message');
+  }
 
-  // Send a reply and store it, capturing the WhatsApp id of our sent message so
-  // the history sync won't duplicate it later.
+  // Send a reply, THEN store it (best-effort). The message goes out even if the
+  // database write fails.
   const reply = async (body) => {
     const sent = await send(remoteJid, body);
-    await mem.appendMessage(userId, remoteJid, 'assistant', body, {
-      waMsgId: sent?.key?.id,
-      ts: Math.floor(Date.now() / 1000),
-    });
-    await mem.setLastReplyAt(userId, remoteJid, Date.now());
+    try {
+      await mem.appendMessage(userId, remoteJid, 'assistant', body, {
+        waMsgId: sent?.key?.id,
+        ts: Math.floor(Date.now() / 1000),
+      });
+      await mem.setLastReplyAt(userId, remoteJid, Date.now());
+    } catch (err) {
+      logger.error({ err: err.message, userId }, 'failed to persist reply');
+    }
   };
 
   if (settings.reply.mode === 'off') return; // logging only
@@ -74,7 +81,12 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner }) {
   if (!isAllowed(settings.reply, number)) return;
 
   const now = Date.now();
-  const last = await mem.getLastReplyAt(userId, remoteJid);
+  let last = 0;
+  try {
+    last = await mem.getLastReplyAt(userId, remoteJid);
+  } catch (err) {
+    logger.error({ err: err.message, userId }, 'failed to read last-reply time');
+  }
   if ((now - last) / 1000 < settings.reply.minIntervalSeconds) return;
 
   if (!withinBusinessHours(settings.reply)) {
@@ -85,7 +97,12 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner }) {
     return;
   }
 
-  const history = (await mem.getHistory(userId, remoteJid)).slice(0, -1);
+  let history = [];
+  try {
+    history = (await mem.getHistory(userId, remoteJid)).slice(0, -1);
+  } catch (err) {
+    logger.error({ err: err.message, userId }, 'failed to read history');
+  }
   let outcome;
   try {
     outcome = await agent.decide(settings, history, text);
