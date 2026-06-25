@@ -27,6 +27,26 @@ const sessions = new Map();
 const reconnects = new Map();
 const MAX_RECONNECT = 8;
 
+// userId -> Map(messageId -> message content). Lets us answer WhatsApp "retry
+// receipts" via getMessage(); without this, replies the recipient fails to
+// decrypt get stuck showing "Waiting for this message." Survives reconnects.
+const msgCaches = new Map();
+const MSG_CACHE_MAX = 3000;
+function msgCacheFor(userId) {
+  let m = msgCaches.get(userId);
+  if (!m) {
+    m = new Map();
+    msgCaches.set(userId, m);
+  }
+  return m;
+}
+function cacheMsg(userId, id, message) {
+  if (!id || !message) return;
+  const m = msgCacheFor(userId);
+  m.set(id, message);
+  if (m.size > MSG_CACHE_MAX) m.delete(m.keys().next().value); // drop oldest
+}
+
 function authDir(userId) {
   return path.join(config.authRoot, userId);
 }
@@ -65,6 +85,9 @@ async function connect(userId) {
     qrTimeout: 60_000,
     connectTimeoutMs: 60_000,
     keepAliveIntervalMs: 25_000,
+    // Serve retry receipts so messages the recipient couldn't decrypt are
+    // re-sent instead of getting stuck on "Waiting for this message."
+    getMessage: async (key) => msgCacheFor(userId).get(key?.id) || undefined,
   });
 
   const entry = { sock, status: 'connecting', qr: null, startedAt: Date.now() };
@@ -72,7 +95,10 @@ async function connect(userId) {
 
   const send = async (jid, text) => {
     try {
-      return await sock.sendMessage(jid, { text });
+      const sent = await sock.sendMessage(jid, { text });
+      // Cache so we can re-serve it if the recipient asks for a retry.
+      if (sent?.key?.id) cacheMsg(userId, sent.key.id, sent.message);
+      return sent;
     } catch (err) {
       logger.error({ err: err.message, userId, jid }, 'failed to send');
       return null;
@@ -169,6 +195,10 @@ async function connect(userId) {
 
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return;
+    // Cache every message we see so retry receipts can be served.
+    for (const m of messages) {
+      if (m?.key?.id && m.message) cacheMsg(userId, m.key.id, m.message);
+    }
     // Reload settings per batch so config changes take effect without restart.
     let settings;
     try {
@@ -248,6 +278,7 @@ async function stop(userId) {
 // Fully unlink: disconnect and delete the stored session.
 async function logout(userId) {
   await stop(userId);
+  msgCaches.delete(userId);
   try {
     fs.rmSync(authDir(userId), { recursive: true, force: true });
   } catch (_) {
