@@ -54,7 +54,6 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
   if (!text) return mark(`no_text:${messageType(msg.message)}`);
 
   const number = numberFromJid(msg.key.participant || remoteJid);
-  const label = `${number} (${remoteJid})`;
   const msgTs = Number(msg.messageTimestamp) || Math.floor(Date.now() / 1000);
 
   logger.info({ userId, from: number, text }, 'incoming');
@@ -137,8 +136,14 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
   if (outcome.action === 'ignore') return mark('ignored');
 
   if (outcome.action === 'escalate') {
+    const who = msg.pushName ? `${msg.pushName} (${number})` : number;
     await notifyOwner(
-      `🔔 Needs you — chat with ${label}\nReason: ${outcome.reason}\nLast message: "${text}"`,
+      `🔔 Needs you — ${who}\n` +
+        `Reason: ${outcome.reason}\n` +
+        `Their message: "${text}"\n\n` +
+        `↩️ Reply to THIS message to answer them` +
+        ` (or send "${number}: your reply").`,
+      remoteJid,
     );
     if (outcome.text) await reply(outcome.text);
     return mark('escalated');

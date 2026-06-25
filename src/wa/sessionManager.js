@@ -16,7 +16,7 @@ const logger = require('../logger');
 const userConfig = require('../services/userConfig');
 const mem = require('../db/messages');
 const { handleMessage } = require('./handler');
-const { extractText, isGroup, isIgnorable } = require('./message-utils');
+const { extractText, quotedId, numberFromJid, isGroup, isIgnorable } = require('./message-utils');
 
 const baileysLogger = pino({ level: 'silent' });
 
@@ -90,6 +90,34 @@ function markBotSent(userId, id) {
 }
 function isBotSent(userId, id) {
   return botSentIds.get(userId)?.has(id) || false;
+}
+
+// userId -> Map(escalationMsgId -> clientJid). When the agent escalates it sends
+// a note to the owner's OWN WhatsApp (self-chat). This remembers which client
+// each note was about, so when the owner quote-replies to that note we relay
+// their answer to the right client.
+const escMaps = new Map();
+const ESC_MAX = 500;
+function escMapFor(userId) {
+  let m = escMaps.get(userId);
+  if (!m) {
+    m = new Map();
+    escMaps.set(userId, m);
+  }
+  return m;
+}
+// userId -> { jid, at } — the most recent escalation, so a plain (un-quoted)
+// reply in the self-chat still reaches the client it was just about.
+const lastEscalated = new Map();
+const RELAY_WINDOW_MS = 60 * 60 * 1000; // 1h
+function rememberEscalation(userId, msgId, clientJid) {
+  if (!clientJid) return;
+  if (msgId) {
+    const m = escMapFor(userId);
+    m.set(msgId, clientJid);
+    if (m.size > ESC_MAX) m.delete(m.keys().next().value);
+  }
+  lastEscalated.set(userId, { jid: clientJid, at: Date.now() });
 }
 
 // Minimal CacheStore for Baileys' msgRetryCounterCache (tracks decryption-retry
@@ -180,9 +208,66 @@ async function connect(userId) {
     }
   };
   entry.send = send;
-  const notifyOwner = async (text) => {
-    const me = sock.user?.id;
-    if (me) await send(me, text);
+  const ownNumber = () => numberFromJid(sock.user?.id);
+  const selfJid = () => `${ownNumber()}@s.whatsapp.net`;
+  const isSelfChat = (jid) => {
+    const own = ownNumber();
+    return !!own && numberFromJid(jid) === own;
+  };
+  // Escalations go to the owner's OWN WhatsApp (the "message to yourself" chat),
+  // tagged so a quote-reply can be routed back to the right client.
+  const notifyOwner = async (text, clientJid) => {
+    if (!ownNumber()) return;
+    const sent = await send(selfJid(), text);
+    if (clientJid) rememberEscalation(userId, sent?.key?.id, clientJid);
+  };
+
+  // The owner typed something in their own self-chat. If it's a reply to an
+  // escalation (quote-reply), or carries an explicit "<number>: message" prefix,
+  // or there's a recent escalation, relay it verbatim to that client.
+  const handleOwnerSelf = async (m) => {
+    const text = extractText(m.message);
+    if (!text) return;
+    let target = null;
+    let body = text;
+
+    // 1) Quote-reply to an escalation note.
+    const qid = quotedId(m.message);
+    if (qid) target = escMapFor(userId).get(qid) || null;
+
+    // 2) Explicit "<number>: message" prefix (e.g. "919876543210: ok done").
+    if (!target) {
+      const match = text.match(/^\s*\+?(\d[\d\s-]{6,})\s*[:\-]\s*([\s\S]+)$/);
+      if (match) {
+        target = `${match[1].replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+        body = match[2].trim();
+      }
+    }
+
+    // 3) Otherwise fall back to the most recent escalation, if it's recent.
+    if (!target) {
+      const le = lastEscalated.get(userId);
+      if (le && Date.now() - le.at < RELAY_WINDOW_MS) target = le.jid;
+    }
+
+    if (!target || !body) return;
+    const sent = await send(target, body);
+    if (!sent) {
+      await send(selfJid(), '⚠️ Could not send — try again.');
+      return;
+    }
+    // Keep talking to whoever the owner just answered: plain self-notes that
+    // follow continue to this client (until a newer escalation or prefix).
+    rememberEscalation(userId, null, target);
+    mem
+      .appendMessage(userId, target, 'assistant', body, {
+        waMsgId: sent.key?.id,
+        ts: Math.floor(Date.now() / 1000),
+        source: 'owner',
+      })
+      .catch(() => {});
+    mem.setLastReplyAt(userId, target, Date.now()).catch(() => {});
+    await send(selfJid(), `✓ Sent to ${numberFromJid(target)}`);
   };
   // Show the "typing…" indicator to the client, so replies feel human.
   const typing = async (jid, presence) => {
@@ -281,17 +366,23 @@ async function connect(userId) {
       if (m?.key?.id && m.message) cacheMsg(userId, m.key.id, m.message);
       if (!jid || jid === 'status@broadcast' || isGroup(jid)) continue;
       if (m.key.fromMe) {
-        if (!isBotSent(userId, m.key.id)) {
-          const t = extractText(m.message);
-          if (t) {
-            mem
-              .appendMessage(userId, jid, 'assistant', t, {
-                waMsgId: m.key.id,
-                ts: Number(m.messageTimestamp) || Math.floor(Date.now() / 1000),
-                source: 'owner',
-              })
-              .catch(() => {});
-          }
+        if (isBotSent(userId, m.key.id)) continue; // our own outgoing — skip
+        if (isSelfChat(jid)) {
+          // Owner wrote in their own self-chat — treat as a relay instruction.
+          handleOwnerSelf(m).catch((err) =>
+            logger.error({ err: err.message, userId }, 'owner-relay failed'),
+          );
+          continue;
+        }
+        const t = extractText(m.message);
+        if (t) {
+          mem
+            .appendMessage(userId, jid, 'assistant', t, {
+              waMsgId: m.key.id,
+              ts: Number(m.messageTimestamp) || Math.floor(Date.now() / 1000),
+              source: 'owner',
+            })
+            .catch(() => {});
         }
       } else {
         act(userId).lastIncomingAt = Date.now();

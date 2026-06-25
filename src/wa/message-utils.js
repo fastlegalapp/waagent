@@ -42,6 +42,12 @@ function messageType(message) {
   return keys[0] || 'empty';
 }
 
+// The id of the message this one is replying to (quoted), if any.
+function quotedId(message) {
+  const m = unwrap(message);
+  return m?.extendedTextMessage?.contextInfo?.stanzaId || null;
+}
+
 function numberFromJid(jid) {
   return (jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
 }
@@ -54,4 +60,4 @@ function isIgnorable(jid) {
   return !jid || jid === 'status@broadcast';
 }
 
-module.exports = { extractText, messageType, numberFromJid, isGroup, isIgnorable };
+module.exports = { extractText, messageType, quotedId, numberFromJid, isGroup, isIgnorable };
