@@ -113,8 +113,15 @@
 
     <!-- ===================== APP (sidebar) ===================== -->
     <div id="appView" class="hidden">
+      <!-- Mobile top app bar (hidden on desktop) -->
+      <header class="topbar">
+        <button id="navToggle" class="nav-toggle" aria-label="Open menu" aria-expanded="false">
+          <span class="bars"></span>
+        </button>
+        <div class="brand"><span class="fl-mark">Fast</span>Legal</div>
+      </header>
       <div class="layout">
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebar">
           <div class="brand"><span class="fl-mark">Fast</span>Legal</div>
           <nav class="side-nav">
             <button data-nav="connect" class="active">📱 Connect</button>
@@ -128,6 +135,7 @@
             <button id="logoutBtn" class="link">Sign out</button>
           </div>
         </aside>
+        <div class="scrim" id="scrim"></div>
 
         <main class="content">
           <!-- CONNECT (not part of the settings form) -->

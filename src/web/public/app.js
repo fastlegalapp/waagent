@@ -11,10 +11,15 @@ async function api(path, opts = {}) {
 }
 
 // ── View switching ───────────────────────────────────────────────────────────
+function closeNav() {
+  document.body.classList.remove('nav-open');
+  $('navToggle')?.setAttribute('aria-expanded', 'false');
+}
 function show(view) {
   $('landingView').classList.toggle('hidden', view !== 'landing');
   $('authShell').classList.toggle('hidden', view !== 'auth');
   $('appView').classList.toggle('hidden', view !== 'app');
+  closeNav();
 }
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
@@ -68,7 +73,17 @@ function showPanel(name) {
   );
 }
 document.querySelectorAll('.side-nav button').forEach((b) => {
-  b.onclick = () => showPanel(b.dataset.nav);
+  b.onclick = () => { showPanel(b.dataset.nav); closeNav(); };
+});
+
+// Mobile drawer toggle.
+$('navToggle').onclick = () => {
+  const open = document.body.classList.toggle('nav-open');
+  $('navToggle').setAttribute('aria-expanded', String(open));
+};
+$('scrim').onclick = closeNav;
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeNav();
 });
 
 // ── Quick Answers (FAQs) ─────────────────────────────────────────────────────
