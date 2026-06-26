@@ -17,7 +17,24 @@ const userConfig = require('../services/userConfig');
 const mem = require('../db/messages');
 const agent = require('../agent/agent');
 const { handleMessage } = require('./handler');
-const { extractText, quotedId, quotedText, numberFromJid, isGroup, isIgnorable } = require('./message-utils');
+const {
+  extractText,
+  quotedId,
+  quotedText,
+  numberFromJid,
+  phoneJid,
+  isGroup,
+  isIgnorable,
+} = require('./message-utils');
+
+// Canonical memory key for a message, matching handler.js: 1:1 chats key by the
+// phone-number JID (so LID and phone JIDs don't split a conversation), groups
+// keep the group JID.
+function memKey(m) {
+  const jid = m?.key?.remoteJid;
+  if (!jid || isGroup(jid)) return jid;
+  return phoneJid(m) || jid;
+}
 
 // Pull a phone number (10–15 digits) out of free text — used to read the client
 // number back out of an escalation note the owner quote-replied to.
@@ -457,7 +474,7 @@ async function connect(userId) {
         const t = extractText(m.message);
         if (t) {
           mem
-            .appendMessage(userId, jid, 'assistant', t, {
+            .appendMessage(userId, memKey(m), 'assistant', t, {
               waMsgId: m.key.id,
               ts: Number(m.messageTimestamp) || Math.floor(Date.now() / 1000),
               source: 'owner',
@@ -509,7 +526,7 @@ async function connect(userId) {
       if (!text) continue;
       rows.push({
         userId,
-        chatId: jid,
+        chatId: phoneJid(m) || jid,
         role: m.key.fromMe ? 'assistant' : 'user',
         content: text,
         source: m.key.fromMe ? 'owner' : 'client',

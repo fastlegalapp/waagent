@@ -86,10 +86,17 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
   const clientName = senderName(msg);
   const msgTs = Number(msg.messageTimestamp) || Math.floor(Date.now() / 1000);
 
+  // Canonical key for stored history / chat-state / rate-limiting. For 1:1 chats
+  // we key by the phone-number JID so a conversation isn't split between a LID
+  // (`...@lid`) and the phone JID — the owner-relay also stores under the phone
+  // JID, so both now land in the same thread the agent reads next turn. Groups
+  // keep the group JID. We still SEND to the live remoteJid.
+  const chatKey = isGroup(remoteJid) ? remoteJid : clientJid;
+
   logger.info({ userId, from: number, text }, 'incoming');
   // Persistence is best-effort — a DB hiccup must never stop the agent replying.
   try {
-    await mem.appendMessage(userId, remoteJid, 'user', text, {
+    await mem.appendMessage(userId, chatKey, 'user', text, {
       waMsgId: msg.key.id,
       ts: msgTs,
       source: 'client',
@@ -98,7 +105,7 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
     logger.error({ err: err.message, userId }, 'failed to store incoming message');
   }
   // Mark client activity (resets the follow-up flag for this chat).
-  mem.setClientActivity(userId, remoteJid, msgTs * 1000).catch(() => {});
+  mem.setClientActivity(userId, chatKey, msgTs * 1000).catch(() => {});
 
   // Send a reply, THEN store it (best-effort). The message goes out even if the
   // database write fails. Shows a typing indicator and a short, human-like pause
@@ -108,14 +115,14 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
     await sleep(Math.min(700 + body.length * 25, 5000));
     const sent = await send(remoteJid, body);
     await showTyping(remoteJid, 'paused');
-    noteReplyAt(userId, remoteJid, Date.now());
+    noteReplyAt(userId, chatKey, Date.now());
     try {
-      await mem.appendMessage(userId, remoteJid, 'assistant', body, {
+      await mem.appendMessage(userId, chatKey, 'assistant', body, {
         waMsgId: sent?.key?.id,
         ts: Math.floor(Date.now() / 1000),
         source: 'bot',
       });
-      await mem.setLastReplyAt(userId, remoteJid, Date.now());
+      await mem.setLastReplyAt(userId, chatKey, Date.now());
     } catch (err) {
       logger.error({ err: err.message, userId }, 'failed to persist reply');
     }
@@ -138,14 +145,14 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
   // Synchronous in-memory gate FIRST, with no await between the check and the
   // reservation — this is what actually closes the race between two messages
   // that arrive close together (each as its own upsert event).
-  const memLast = lastReplyAt.get(`${userId}:${remoteJid}`) || 0;
+  const memLast = lastReplyAt.get(`${userId}:${chatKey}`) || 0;
   if (minInterval > 0 && (now - memLast) / 1000 < minInterval) return mark('rate_limited');
-  noteReplyAt(userId, remoteJid, now); // reserve the slot before any await
+  noteReplyAt(userId, chatKey, now); // reserve the slot before any await
   // Also honour the persisted last-reply time (survives restarts) as a lower
   // bound; safe to check after reserving.
   let dbLast = 0;
   try {
-    dbLast = await mem.getLastReplyAt(userId, remoteJid);
+    dbLast = await mem.getLastReplyAt(userId, chatKey);
   } catch (err) {
     logger.error({ err: err.message, userId }, 'failed to read last-reply time');
   }
@@ -161,7 +168,7 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
 
   let history = [];
   try {
-    history = (await mem.getHistory(userId, remoteJid)).slice(0, -1);
+    history = (await mem.getHistory(userId, chatKey)).slice(0, -1);
   } catch (err) {
     logger.error({ err: err.message, userId }, 'failed to read history');
   }
