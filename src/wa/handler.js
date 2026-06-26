@@ -7,6 +7,7 @@ const {
   extractText,
   messageType,
   numberFromJid,
+  numberInList,
   phoneJid,
   senderName,
   isGroup,
@@ -41,8 +42,8 @@ function withinBusinessHours(reply) {
 }
 
 function isAllowed(reply, number) {
-  if (reply.blocklist.includes(number)) return false;
-  if (reply.allowlist.length > 0) return reply.allowlist.includes(number);
+  if (numberInList(reply.blocklist, number)) return false;
+  if (reply.allowlist.length > 0) return numberInList(reply.allowlist, number);
   return true;
 }
 

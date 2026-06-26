@@ -61,6 +61,24 @@ function numberFromJid(jid) {
   return (jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
 }
 
+// Loose phone-number match: equal, or one is a suffix of the other. This lets a
+// user enter a number with OR without the country code (e.g. "9876543210" still
+// matches the stored "919876543210"). Requires >= 8 shared trailing digits so
+// short fragments can't accidentally match many numbers.
+function numbersMatch(a, b) {
+  const x = (a || '').replace(/[^0-9]/g, '');
+  const y = (b || '').replace(/[^0-9]/g, '');
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const min = Math.min(x.length, y.length);
+  return min >= 8 && (x.endsWith(y) || y.endsWith(x));
+}
+
+// True if `number` matches any entry in `list` (using the loose match above).
+function numberInList(list, number) {
+  return Array.isArray(list) && list.some((n) => numbersMatch(n, number));
+}
+
 // The real mobile-number JID for a message. WhatsApp's newer "LID" addressing
 // can put an internal id (e.g. "12345@lid") in remoteJid; the actual phone-
 // number JID is then carried in the *Alt fields. We prefer any
@@ -95,6 +113,8 @@ module.exports = {
   quotedId,
   quotedText,
   numberFromJid,
+  numbersMatch,
+  numberInList,
   phoneJid,
   senderName,
   isGroup,

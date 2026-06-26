@@ -6,6 +6,7 @@ const userConfig = require('../services/userConfig');
 const agent = require('../agent/agent');
 const manager = require('../wa/sessionManager');
 const logger = require('../logger');
+const { numberFromJid, numberInList } = require('../wa/message-utils');
 
 const MAX_PER_RUN = 20; // safety cap per user per run
 
@@ -27,9 +28,17 @@ async function runForUser(userId) {
     return;
   }
 
+  const { blocklist, allowlist } = settings.reply;
   let sent = 0;
   for (const chatId of chats) {
     if (sent >= MAX_PER_RUN) break;
+    // Never nudge a number the owner blocked (or one outside the allowlist).
+    const number = numberFromJid(chatId);
+    if (numberInList(blocklist, number) || (allowlist.length > 0 && !numberInList(allowlist, number))) {
+      // eslint-disable-next-line no-await-in-loop
+      await mem.markFollowupDone(userId, chatId).catch(() => {});
+      continue;
+    }
     try {
       // eslint-disable-next-line no-await-in-loop
       const history = await mem.getHistory(userId, chatId);

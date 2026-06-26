@@ -276,7 +276,10 @@
                 <label>Allowlist (numbers, comma-separated; blank = everyone)
                   <input type="text" id="allowlist" placeholder="15551234567, 447700900000" />
                 </label>
-                <label>Blocklist<input type="text" id="blocklist" /></label>
+                <label>Blocked numbers — the agent never messages these (comma-separated)
+                  <input type="text" id="blocklist" placeholder="9876543210, 15551234567" />
+                </label>
+                <p class="hint">Add numbers with or without the country code — both match. Applies to auto-replies <em>and</em> follow-ups.</p>
                 <div class="grid2">
                   <label>Min seconds between replies
                     <input type="number" id="minIntervalSeconds" min="0" max="3600" />
