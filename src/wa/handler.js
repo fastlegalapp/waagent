@@ -47,18 +47,18 @@ function isAllowed(reply, number) {
   return true;
 }
 
+// Per-chat "gather" debounce timers. A client often sends several messages in a
+// burst ("hi" / "I need a report" / "for my bakery"). Instead of instantly
+// replying to the first line out of context, we wait until they go quiet, then
+// reply ONCE with the whole burst (now in the stored history) as context.
+const pending = new Map(); // `${userId}:${chatKey}` -> Timeout
+const PENDING_MAX = 50_000;
+
 /**
- * Handle one incoming WhatsApp message for a specific user.
- *
- * @param {object} ctx
- * @param {string} ctx.userId
- * @param {object} ctx.settings    resolved user config (fetched fresh per message)
- * @param {object} ctx.msg         raw Baileys message
- * @param {function} ctx.send      async (jid, text) => void
- * @param {function} ctx.notifyOwner async (text) => void
+ * Handle one incoming WhatsApp message: validate, store it, and (if the agent
+ * should reply) schedule a single contextual response once the client pauses.
  */
 async function handleMessage({ userId, settings, msg, send, notifyOwner, typing, note }) {
-  const showTyping = typing || (async () => {});
   const mark = (status) => {
     try {
       if (note) note(status);
@@ -90,12 +90,13 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
   // Canonical key for stored history / chat-state / rate-limiting. For 1:1 chats
   // we key by the phone-number JID so a conversation isn't split between a LID
   // (`...@lid`) and the phone JID — the owner-relay also stores under the phone
-  // JID, so both now land in the same thread the agent reads next turn. Groups
-  // keep the group JID. We still SEND to the live remoteJid.
+  // JID, so both land in the same thread the agent reads. Groups keep the group
+  // JID. We still SEND to the live remoteJid.
   const chatKey = isGroup(remoteJid) ? remoteJid : clientJid;
 
   logger.info({ userId, from: number, text }, 'incoming');
-  // Persistence is best-effort — a DB hiccup must never stop the agent replying.
+  // Store the incoming message immediately so it's part of the context the agent
+  // reads — even if several arrive before we reply. Best-effort.
   try {
     await mem.appendMessage(userId, chatKey, 'user', text, {
       waMsgId: msg.key.id,
@@ -108,24 +109,60 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
   // Mark client activity (resets the follow-up flag for this chat).
   mem.setClientActivity(userId, chatKey, msgTs * 1000).catch(() => {});
 
-  // Send a reply, THEN store it (best-effort). The message goes out even if the
-  // database write fails. Shows a typing indicator and a short, human-like pause
-  // (scaled to message length, capped) so it doesn't feel like an instant bot.
-  const reply = async (body) => {
-    // Human-like gap: a brief "reading" pause, then the typing indicator, then
-    // the message — total time is a random value in the owner's configured
-    // [min, max] range (so replies aren't instant and don't feel robotic).
-    const lo = Math.max(0, Number(settings.reply.delayMinSeconds) || 0);
-    const hi = Math.max(lo, Number(settings.reply.delayMaxSeconds) || 0);
-    const totalMs = (lo === hi ? lo : lo + Math.random() * (hi - lo)) * 1000;
-    if (totalMs > 0) {
-      const readMs = Math.min(totalMs * 0.35, 2000); // pause "reading" before typing
-      await sleep(readMs);
-      await showTyping(remoteJid, 'composing');
-      await sleep(totalMs - readMs);
-    } else {
-      await showTyping(remoteJid, 'composing');
+  if (settings.reply.mode === 'off') return mark('mode_off'); // logging only
+  if (!settings.ai.apiKey) {
+    logger.warn(
+      { userId, provider: settings.ai.provider },
+      'reply mode auto but no API key set for the selected provider — skipping',
+    );
+    return mark('no_api_key');
+  }
+  if (!isAllowed(settings.reply, number)) return mark('not_allowed');
+
+  // Wait for the client to finish (the configured reply-delay range is the
+  // "gather" window). Each new message resets the timer; when it finally fires,
+  // we reply once with full context. delay 0 → responds immediately.
+  const key = `${userId}:${chatKey}`;
+  const prev = pending.get(key);
+  if (prev) clearTimeout(prev);
+  const lo = Math.max(0, Number(settings.reply.delayMinSeconds) || 0);
+  const hi = Math.max(lo, Number(settings.reply.delayMaxSeconds) || 0);
+  const waitMs = (lo === hi ? lo : lo + Math.random() * (hi - lo)) * 1000;
+  const ctx = { userId, settings, remoteJid, chatKey, number, clientJid, clientName, text, send, notifyOwner, typing, note };
+  const timer = setTimeout(() => {
+    pending.delete(key);
+    respond(ctx).catch((err) => {
+      logger.error({ err: err.message, userId }, 'respond failed');
+      mark('handler_error');
+    });
+  }, waitMs);
+  timer.unref?.();
+  pending.set(key, timer);
+  if (pending.size > PENDING_MAX) {
+    const oldest = pending.keys().next().value;
+    if (oldest !== key) { clearTimeout(pending.get(oldest)); pending.delete(oldest); }
+  }
+}
+
+// Produce and send one reply for a chat, using the full stored history as
+// context. Runs after the gather window, so the client's whole burst is already
+// persisted and visible to the agent.
+async function respond({ userId, settings, remoteJid, chatKey, number, clientJid, clientName, text, send, notifyOwner, typing, note }) {
+  const showTyping = typing || (async () => {});
+  const mark = (status) => {
+    try {
+      if (note) note(status);
+    } catch (_) {
+      /* diagnostics are best-effort */
     }
+  };
+
+  // Send a reply, then store it (best-effort). The gather window already
+  // provided the human-like wait, so here we just show the typing indicator for
+  // a short, length-scaled moment before sending.
+  const reply = async (body) => {
+    await showTyping(remoteJid, 'composing');
+    await sleep(Math.min(800 + body.length * 18, 3000));
     const sent = await send(remoteJid, body);
     await showTyping(remoteJid, 'paused');
     noteReplyAt(userId, chatKey, Date.now());
@@ -141,28 +178,11 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
     }
   };
 
-  if (settings.reply.mode === 'off') return mark('mode_off'); // logging only
-
-  if (!settings.ai.apiKey) {
-    logger.warn(
-      { userId, provider: settings.ai.provider },
-      'reply mode auto but no API key set for the selected provider — skipping',
-    );
-    return mark('no_api_key');
-  }
-
-  if (!isAllowed(settings.reply, number)) return mark('not_allowed');
-
+  // Min seconds between replies to the same chat (across separate bursts).
   const now = Date.now();
   const minInterval = Number(settings.reply.minIntervalSeconds) || 0;
-  // Synchronous in-memory gate FIRST, with no await between the check and the
-  // reservation — this is what actually closes the race between two messages
-  // that arrive close together (each as its own upsert event).
   const memLast = lastReplyAt.get(`${userId}:${chatKey}`) || 0;
   if (minInterval > 0 && (now - memLast) / 1000 < minInterval) return mark('rate_limited');
-  noteReplyAt(userId, chatKey, now); // reserve the slot before any await
-  // Also honour the persisted last-reply time (survives restarts) as a lower
-  // bound; safe to check after reserving.
   let dbLast = 0;
   try {
     dbLast = await mem.getLastReplyAt(userId, chatKey);
@@ -179,6 +199,8 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
     return mark('after_hours');
   }
 
+  // Full conversation context for this chat (the just-stored burst is included;
+  // drop the very last row since that's the message we pass as the current turn).
   let history = [];
   try {
     history = (await mem.getHistory(userId, chatKey)).slice(0, -1);
