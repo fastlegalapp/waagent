@@ -2,7 +2,7 @@
 
 const { query } = require('./pool');
 
-const MAX_TURNS = 30; // bound history per chat to control token usage
+const MAX_TURNS = 60; // recent messages per chat sent to the agent as context
 
 // Append one message. `opts` may carry { waMsgId, ts }. Live messages pass the
 // WhatsApp id so they dedupe against the history sync; internal rows omit it.

@@ -72,6 +72,13 @@ function buildSystemPrompt(owner) {
       ? `IMPORTANT — ${name}'s own instructions on how to chat (follow these above all): ${owner.custom}`
       : '',
     '',
+    'This is an ongoing WhatsApp conversation — the chat history so far is shown',
+    'below. Read it carefully and reply IN CONTEXT: remember what the client',
+    'already told you (their name, what they need, prices/dates/details mentioned),',
+    'pick up where you left off, and never re-ask something they have already',
+    'answered or repeat yourself. If they refer to "it"/"that"/"the same", use the',
+    'history to know what they mean.',
+    '',
     'Always:',
     '- Sound like a real person on WhatsApp, never a bot or "assistant". Use contractions.',
     '- Mirror the other person\'s language and tone. If they write in Hindi or Hinglish,',
