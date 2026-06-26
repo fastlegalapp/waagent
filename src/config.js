@@ -25,6 +25,10 @@ const config = {
 
   // Set true behind HTTPS so the login cookie is marked Secure.
   cookieSecure: (process.env.COOKIE_SECURE || 'false').toLowerCase() === 'true',
+
+  // Delete stored chat messages older than this many days, so the table
+  // doesn't grow forever. 0 (or negative) disables pruning.
+  messageRetentionDays: Number(process.env.MESSAGE_RETENTION_DAYS || 90),
 };
 
 function validate() {

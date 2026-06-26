@@ -5,6 +5,7 @@ const logger = require('./logger');
 const { migrate } = require('./db/migrate');
 const { listen } = require('./web/server');
 const users = require('./db/users');
+const mem = require('./db/messages');
 const manager = require('./wa/sessionManager');
 const styleLearner = require('./services/styleLearner');
 const followups = require('./services/followups');
@@ -39,6 +40,20 @@ async function migrateThenResume() {
   } catch (err) {
     logger.error({ err: err.message }, 'failed to resume sessions');
   }
+
+  // Delete chat messages older than the retention window so the table stays
+  // bounded. Runs now and daily; disabled when messageRetentionDays <= 0.
+  const prune = () => {
+    if (config.messageRetentionDays <= 0) return;
+    mem
+      .pruneOld(config.messageRetentionDays)
+      .then((removed) => {
+        if (removed) logger.info({ removed, days: config.messageRetentionDays }, 'pruned old messages');
+      })
+      .catch((err) => logger.warn({ err: err.message }, 'message prune failed'));
+  };
+  prune();
+  setInterval(prune, DAY_MS).unref?.();
 
   // Re-learn each owner's chatting style daily so the agent matures over time.
   setInterval(() => {

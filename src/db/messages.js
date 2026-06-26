@@ -155,9 +155,24 @@ async function getFollowupCandidates(userId, beforeMs) {
   return rows.map((r) => r.chat_id);
 }
 
+// Delete messages older than `days` so the table stays bounded over time.
+// Uses created_at (server insert time), which is always present and monotonic,
+// rather than the WhatsApp ts (which can be 0 for some imported rows). Returns
+// the number of rows removed.
+async function pruneOld(days) {
+  const n = Math.floor(Number(days) || 0);
+  if (n <= 0) return 0;
+  const { rowCount } = await query(
+    `DELETE FROM messages WHERE created_at < now() - make_interval(days => $1)`,
+    [n],
+  );
+  return rowCount || 0;
+}
+
 module.exports = {
   appendMessage,
   appendMany,
+  pruneOld,
   getOwnerSamples,
   getHistory,
   getLastReplyAt,
