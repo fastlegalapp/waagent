@@ -4,13 +4,23 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>FastLegal — your WhatsApp, answered like you</title>
+    <meta name="description" content="FastLegal replies to your clients on WhatsApp in your own voice — learns from your past chats, follows up automatically, and never sleeps." />
+    <meta name="theme-color" content="#ffd23f" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta property="og:title" content="FastLegal — your WhatsApp, answered like you" />
+    <meta property="og:description" content="AI that answers your clients on WhatsApp in your own voice. Bring your own number and AI key." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/favicon.svg" />
+    <meta name="twitter:card" content="summary" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <!-- ===================== LANDING ===================== -->
     <div id="landingView" class="hidden">
       <header class="lp-nav">
-        <div class="brand">FastLegal</div>
+        <div class="brand"><span class="fl-mark">Fast</span>Legal</div>
         <div class="lp-nav-actions">
           <button class="ghost" data-auth="login">Sign in</button>
           <button class="primary" data-auth="signup">Get started</button>
@@ -29,7 +39,7 @@
             <button class="primary big" data-auth="signup">Get started free</button>
             <button class="ghost big" data-auth="login">Sign in</button>
           </div>
-          <p class="muted small">Link your own number · bring your own AI key · your data encrypted</p>
+          <p><span class="trust">Link your own number · bring your own AI key · data encrypted</span></p>
         </div>
       </section>
 
@@ -75,7 +85,7 @@
       </section>
 
       <footer class="lp-foot">
-        <span class="brand">FastLegal</span>
+        <span class="brand"><span class="fl-mark">Fast</span>Legal</span>
         <span class="muted small">Personal WhatsApp automation · use responsibly</span>
       </footer>
     </div>
@@ -84,7 +94,7 @@
     <div id="authShell" class="hidden">
       <div class="auth-back"><button class="link" id="backHome">← Back</button></div>
       <section id="authView" class="card auth">
-        <div class="brand center">FastLegal</div>
+        <div class="brand center"><span class="fl-mark">Fast</span>Legal</div>
         <div class="tabs">
           <button id="tabLogin" class="tab active">Sign in</button>
           <button id="tabSignup" class="tab">Create account</button>
@@ -105,7 +115,7 @@
     <div id="appView" class="hidden">
       <div class="layout">
         <aside class="sidebar">
-          <div class="brand">FastLegal</div>
+          <div class="brand"><span class="fl-mark">Fast</span>Legal</div>
           <nav class="side-nav">
             <button data-nav="connect" class="active">📱 Connect</button>
             <button data-nav="persona">🗣️ Persona &amp; Instructions</button>

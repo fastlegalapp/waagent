@@ -1,0 +1,12 @@
+{
+  "name": "FastLegal",
+  "short_name": "FastLegal",
+  "description": "Your WhatsApp, answered like you.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffd23f",
+  "icons": [
+    { "src": "/favicon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" }
+  ]
+}
