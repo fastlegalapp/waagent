@@ -109,6 +109,7 @@
           <nav class="side-nav">
             <button data-nav="connect" class="active">📱 Connect</button>
             <button data-nav="persona">🗣️ Persona &amp; Instructions</button>
+            <button data-nav="faqs">📋 Quick Answers</button>
             <button data-nav="ai">🔑 AI Provider</button>
             <button data-nav="replies">⚙️ Replies &amp; Follow-ups</button>
           </nav>
@@ -178,6 +179,25 @@
                 </div>
                 <p class="hint" id="learnStyleStatus"></p>
               </fieldset>
+            </section>
+
+            <section class="panel hidden" data-panel="faqs">
+              <h2>Quick Answers</h2>
+              <p class="muted">Set up common questions and a short answer for each —
+                office address, documents required, pricing, email, website, or
+                anything you like. You only need the basic facts; the agent answers
+                in its own words and the client's language.</p>
+              <div id="faqList"></div>
+              <div class="row">
+                <button type="button" id="addFaqBtn" class="ghost">+ Add question</button>
+              </div>
+              <p class="hint">Quick add:
+                <button type="button" class="link faq-preset" data-q="What is your office address?">Office address</button> ·
+                <button type="button" class="link faq-preset" data-q="What documents are required?">Documents required</button> ·
+                <button type="button" class="link faq-preset" data-q="What are your fees / pricing?">Pricing</button> ·
+                <button type="button" class="link faq-preset" data-q="What is your email?">Email</button> ·
+                <button type="button" class="link faq-preset" data-q="What is your website?">Website</button>
+              </p>
             </section>
 
             <section class="panel hidden" data-panel="ai">

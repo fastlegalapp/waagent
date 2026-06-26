@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
   business_description   TEXT NOT NULL DEFAULT '',
   persona_style          TEXT NOT NULL DEFAULT 'friendly',  -- how it should chat
   persona_custom         TEXT NOT NULL DEFAULT '',          -- owner's own how-to-talk notes
+  faqs                   TEXT NOT NULL DEFAULT '[]',        -- JSON [{q,a}] canned answers the agent rephrases
   learned_style          TEXT NOT NULL DEFAULT '',          -- AI-learned summary of how the owner talks
   learned_style_at       TIMESTAMPTZ,                       -- when it last learned
   provider               TEXT NOT NULL DEFAULT 'anthropic', -- 'anthropic' | 'deepseek'
@@ -72,6 +73,7 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS wa_msg_id TEXT;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS ts BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS persona_style TEXT NOT NULL DEFAULT 'friendly';
 ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS persona_custom TEXT NOT NULL DEFAULT '';
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS faqs TEXT NOT NULL DEFAULT '[]';
 ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS learned_style TEXT NOT NULL DEFAULT '';
 ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS learned_style_at TIMESTAMPTZ;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS source TEXT;

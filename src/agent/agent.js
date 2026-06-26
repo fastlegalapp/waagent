@@ -39,12 +39,30 @@ const STYLES = {
 };
 const STYLE_KEYS = Object.keys(STYLES);
 
+function buildFaqBlock(owner) {
+  const faqs = Array.isArray(owner.faqs)
+    ? owner.faqs.filter((f) => f && f.q && f.a)
+    : [];
+  if (faqs.length === 0) return '';
+  const lines = faqs.map((f) => `• ${f.q} → ${f.a}`).join('\n');
+  return (
+    'Known facts you can answer common questions with. When a client asks about ' +
+    'one of these, use the fact but say it naturally in your own words and the ' +
+    "client's language — never paste it verbatim or read out a list. If a client " +
+    "asks about something not here and you don't truly know it, escalate instead " +
+    'of guessing:\n' +
+    lines
+  );
+}
+
 function buildSystemPrompt(owner) {
   const name = owner.name || 'the owner';
   const style = STYLES[owner.style] || STYLES.friendly;
   return [
     `You are texting on WhatsApp as ${name}${owner.business ? ` (${owner.business})` : ''}.`,
     owner.description ? `What you do: ${owner.description}` : '',
+    '',
+    buildFaqBlock(owner),
     '',
     `Your chatting style: ${style}`,
     owner.learnedStyle

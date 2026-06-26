@@ -60,6 +60,17 @@ router.put('/', async (req, res) => {
   if (typeof b.personaCustom === 'string') {
     patch.persona_custom = b.personaCustom.slice(0, 2000);
   }
+  // FAQs: array of {q,a}. Trim, cap sizes, drop blanks, limit count.
+  if (Array.isArray(b.faqs)) {
+    const faqs = b.faqs
+      .slice(0, 40)
+      .map((f) => ({
+        q: String(f?.q || '').trim().slice(0, 200),
+        a: String(f?.a || '').trim().slice(0, 1000),
+      }))
+      .filter((f) => f.q && f.a);
+    patch.faqs = JSON.stringify(faqs);
+  }
   if (typeof b.model === 'string' && b.model) patch.anthropic_model = b.model.slice(0, 100);
 
   if (b.provider === 'anthropic' || b.provider === 'deepseek') patch.provider = b.provider;

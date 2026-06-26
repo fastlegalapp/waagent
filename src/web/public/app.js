@@ -71,6 +71,42 @@ document.querySelectorAll('.side-nav button').forEach((b) => {
   b.onclick = () => showPanel(b.dataset.nav);
 });
 
+// ── Quick Answers (FAQs) ─────────────────────────────────────────────────────
+function addFaqRow(q = '', a = '') {
+  const list = $('faqList');
+  const wrap = document.createElement('div');
+  wrap.className = 'faq-row';
+  const qIn = document.createElement('input');
+  qIn.type = 'text'; qIn.className = 'faq-q'; qIn.placeholder = 'Question (e.g. Office address?)';
+  qIn.value = q;
+  const aIn = document.createElement('textarea');
+  aIn.className = 'faq-a'; aIn.rows = 2; aIn.placeholder = 'Short answer / basic facts';
+  aIn.value = a;
+  const del = document.createElement('button');
+  del.type = 'button'; del.className = 'faq-del'; del.title = 'Remove'; del.textContent = '✕';
+  del.onclick = () => wrap.remove();
+  wrap.append(qIn, aIn, del);
+  list.appendChild(wrap);
+  return qIn;
+}
+function fillFaqs(faqs) {
+  const list = $('faqList');
+  list.innerHTML = '';
+  (Array.isArray(faqs) ? faqs : []).forEach((f) => addFaqRow(f.q || '', f.a || ''));
+}
+function collectFaqs() {
+  return Array.from(document.querySelectorAll('#faqList .faq-row'))
+    .map((r) => ({
+      q: r.querySelector('.faq-q').value.trim(),
+      a: r.querySelector('.faq-a').value.trim(),
+    }))
+    .filter((f) => f.q && f.a);
+}
+$('addFaqBtn').onclick = () => addFaqRow().focus();
+document.querySelectorAll('.faq-preset').forEach((b) => {
+  b.onclick = () => addFaqRow(b.dataset.q, '').nextSibling.focus();
+});
+
 // ── Settings ─────────────────────────────────────────────────────────────────
 function applyProviderVisibility() {
   const p = $('provider').value;
@@ -93,6 +129,7 @@ function fillSettings(s) {
   $('businessDescription').value = s.businessDescription || '';
   $('personaStyle').value = s.personaStyle || 'friendly';
   $('personaCustom').value = s.personaCustom || '';
+  fillFaqs(s.faqs);
   $('learnStyleStatus').textContent = s.learnedStyle
     ? `✅ Learned your style${s.learnedStyleAt ? ` (updated ${new Date(s.learnedStyleAt).toLocaleString()})` : ''}. It re-learns daily.`
     : 'Not learned yet — link WhatsApp (imports your history), then click the button.';
@@ -132,6 +169,7 @@ $('settingsForm').onsubmit = async (e) => {
     businessDescription: $('businessDescription').value,
     personaStyle: $('personaStyle').value,
     personaCustom: $('personaCustom').value,
+    faqs: collectFaqs(),
     provider: $('provider').value,
     model: $('model').value,
     deepseekModel: $('deepseekModel').value,

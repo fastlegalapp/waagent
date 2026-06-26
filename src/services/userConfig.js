@@ -10,6 +10,21 @@ function parseList(value) {
     .filter(Boolean);
 }
 
+// FAQs are stored as a JSON string [{q,a}]. Parse defensively — bad/legacy data
+// must never break settings loading.
+function parseFaqs(value) {
+  if (Array.isArray(value)) return value;
+  try {
+    const arr = JSON.parse(value || '[]');
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map((f) => ({ q: String(f?.q || '').trim(), a: String(f?.a || '').trim() }))
+      .filter((f) => f.q && f.a);
+  } catch (_) {
+    return [];
+  }
+}
+
 // Resolve a user's stored settings into the runtime config the agent + message
 // handler expect. Includes the DECRYPTED Anthropic key — never send this to the
 // browser; use sanitize() for that.
@@ -38,6 +53,7 @@ async function resolve(userId) {
       description: row.business_description || '',
       style: row.persona_style || 'friendly',
       custom: row.persona_custom || '',
+      faqs: parseFaqs(row.faqs),
       learnedStyle: row.learned_style || '',
     },
     ai,
@@ -67,6 +83,7 @@ async function sanitize(userId) {
     businessDescription: row.business_description,
     personaStyle: row.persona_style || 'friendly',
     personaCustom: row.persona_custom || '',
+    faqs: parseFaqs(row.faqs),
     learnedStyle: row.learned_style || '',
     learnedStyleAt: row.learned_style_at || null,
     provider: row.provider || 'anthropic',
@@ -86,4 +103,4 @@ async function sanitize(userId) {
   };
 }
 
-module.exports = { resolve, sanitize, parseList };
+module.exports = { resolve, sanitize, parseList, parseFaqs };

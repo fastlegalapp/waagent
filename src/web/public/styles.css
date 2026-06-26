@@ -173,6 +173,23 @@ legend { color: var(--muted); font-size: 13px; padding: 0 6px; font-weight: 600;
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .provider-box { margin-top: 10px; padding-top: 6px; border-top: 1px dashed var(--line); }
 
+/* Quick Answers (FAQ) rows */
+.faq-row {
+  display: grid; grid-template-columns: 1fr 1.4fr auto; gap: 10px;
+  align-items: start; margin-bottom: 10px;
+}
+.faq-row .faq-q { align-self: stretch; }
+.faq-del {
+  background: #fff; color: var(--muted); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 12px; font-weight: 700; align-self: start;
+}
+.faq-del:hover { color: var(--danger); border-color: #f2c4c4; background: #fdf3f3; }
+.faq-preset { padding: 2px 4px; }
+@media (max-width: 640px) {
+  .faq-row { grid-template-columns: 1fr auto; }
+  .faq-row .faq-a { grid-column: 1 / -1; }
+}
+
 .row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
 .savebar { display: flex; align-items: center; gap: 14px; margin-top: 4px; }
 .savebar button { margin-left: auto; }

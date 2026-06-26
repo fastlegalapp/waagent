@@ -15,6 +15,16 @@ const {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// In-memory per-chat last-reply time. Closes the race where two messages that
+// arrive close together (as separate upsert events, before the DB write lands)
+// both clear the interval gate. We reserve the slot synchronously the moment a
+// message passes the gate, so a second message arriving while we're still
+// thinking/typing is throttled immediately.
+const lastReplyAt = new Map(); // `${userId}:${chatId}` -> epoch ms
+function noteReplyAt(userId, chatId, ms) {
+  lastReplyAt.set(`${userId}:${chatId}`, ms);
+}
+
 function withinBusinessHours(reply) {
   const { businessHoursStart: start, businessHoursEnd: end } = reply;
   if (start == null || end == null) return true;
@@ -91,6 +101,7 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
     await sleep(Math.min(700 + body.length * 25, 5000));
     const sent = await send(remoteJid, body);
     await showTyping(remoteJid, 'paused');
+    noteReplyAt(userId, remoteJid, Date.now());
     try {
       await mem.appendMessage(userId, remoteJid, 'assistant', body, {
         waMsgId: sent?.key?.id,
@@ -116,13 +127,22 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
   if (!isAllowed(settings.reply, number)) return mark('not_allowed');
 
   const now = Date.now();
-  let last = 0;
+  const minInterval = Number(settings.reply.minIntervalSeconds) || 0;
+  // Synchronous in-memory gate FIRST, with no await between the check and the
+  // reservation — this is what actually closes the race between two messages
+  // that arrive close together (each as its own upsert event).
+  const memLast = lastReplyAt.get(`${userId}:${remoteJid}`) || 0;
+  if (minInterval > 0 && (now - memLast) / 1000 < minInterval) return mark('rate_limited');
+  noteReplyAt(userId, remoteJid, now); // reserve the slot before any await
+  // Also honour the persisted last-reply time (survives restarts) as a lower
+  // bound; safe to check after reserving.
+  let dbLast = 0;
   try {
-    last = await mem.getLastReplyAt(userId, remoteJid);
+    dbLast = await mem.getLastReplyAt(userId, remoteJid);
   } catch (err) {
     logger.error({ err: err.message, userId }, 'failed to read last-reply time');
   }
-  if ((now - last) / 1000 < settings.reply.minIntervalSeconds) return mark('rate_limited');
+  if (minInterval > 0 && (now - dbLast) / 1000 < minInterval) return mark('rate_limited');
 
   if (!withinBusinessHours(settings.reply)) {
     await reply(
