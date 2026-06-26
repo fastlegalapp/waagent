@@ -104,6 +104,58 @@ async function getHistory(userId, chatId) {
   }
 }
 
+// Cross-chat recall: find past client questions (in OTHER chats) similar to
+// `queryText` and the reply that followed each — i.e. "how did the owner answer
+// a similar question before". Uses Postgres full-text search ('simple' config,
+// language-agnostic). Returns [{question, answer}] best-match first; [] if there
+// are no matches or full-text search isn't available.
+async function findSimilarAnswered(userId, queryText, excludeChatId, limit = 3) {
+  // Tokenise to word/number lexemes (unicode-aware, so Hindi/Hinglish works) and
+  // build an OR tsquery — we want messages that share SOME words (similar), not
+  // ones that contain every word. Ranking by ts_rank surfaces the best overlap.
+  const terms = String(queryText || '')
+    .toLowerCase()
+    .match(/[\p{L}\p{N}]{2,}/gu);
+  if (!terms || terms.length === 0) return [];
+  const tsq = Array.from(new Set(terms)).join(' | ');
+  try {
+    const { rows } = await query(
+      `SELECT m.content AS question, reply.content AS answer
+         FROM messages m
+         JOIN LATERAL (
+           SELECT nxt.content FROM messages nxt
+            WHERE nxt.user_id = m.user_id AND nxt.chat_id = m.chat_id
+              AND nxt.role = 'assistant' AND nxt.id > m.id AND length(nxt.content) > 0
+            ORDER BY nxt.id ASC LIMIT 1
+         ) reply ON true
+        WHERE m.user_id = $1
+          AND m.role = 'user'
+          AND (m.source IS NULL OR m.source = 'client')
+          AND m.chat_id <> $3
+          AND length(m.content) > 0
+          AND to_tsvector('simple', m.content) @@ to_tsquery('simple', $2)
+        ORDER BY ts_rank(to_tsvector('simple', m.content), to_tsquery('simple', $2)) DESC
+        LIMIT $4`,
+      [userId, tsq, excludeChatId || '', limit * 4],
+    );
+    const seen = new Set();
+    const out = [];
+    for (const r of rows) {
+      const question = (r.question || '').trim();
+      const answer = (r.answer || '').trim();
+      if (!question || !answer || question === answer) continue;
+      const k = answer.toLowerCase();
+      if (seen.has(k)) continue; // drop duplicate answers
+      seen.add(k);
+      out.push({ question, answer });
+      if (out.length >= limit) break;
+    }
+    return out;
+  } catch (err) {
+    return []; // older Postgres / missing function → silently skip recall
+  }
+}
+
 async function getLastReplyAt(userId, chatId) {
   const { rows } = await query(
     `SELECT last_reply_at FROM chat_state WHERE user_id = $1 AND chat_id = $2`,
@@ -175,6 +227,7 @@ module.exports = {
   pruneOld,
   getOwnerSamples,
   getHistory,
+  findSimilarAnswered,
   getLastReplyAt,
   setLastReplyAt,
   setClientActivity,

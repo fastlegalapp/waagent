@@ -55,7 +55,25 @@ function buildFaqBlock(owner) {
   );
 }
 
-function buildSystemPrompt(owner) {
+// Past Q→A pairs retrieved from the owner's OTHER chats — examples of how they
+// have answered similar questions before. The agent uses them as a guide.
+function buildExamplesBlock(examples) {
+  const ex = Array.isArray(examples) ? examples.filter((e) => e && e.question && e.answer) : [];
+  if (ex.length === 0) return '';
+  const clip = (s) => String(s).replace(/\s+/g, ' ').slice(0, 280);
+  const lines = ex
+    .map((e, i) => `${i + 1}. Someone asked: "${clip(e.question)}"\n   You answered: "${clip(e.answer)}"`)
+    .join('\n');
+  return (
+    'How YOU have handled similar questions before, from your past chats with ' +
+    'other clients. Use these as a guide for what to say and how — adapt to THIS ' +
+    "client and the current conversation, never paste them verbatim, and if they " +
+    "don't fit, ignore them:\n" +
+    lines
+  );
+}
+
+function buildSystemPrompt(owner, examples) {
   const name = owner.name || 'the owner';
   const style = STYLES[owner.style] || STYLES.friendly;
   return [
@@ -63,6 +81,8 @@ function buildSystemPrompt(owner) {
     owner.description ? `What you do: ${owner.description}` : '',
     '',
     buildFaqBlock(owner),
+    '',
+    buildExamplesBlock(examples),
     '',
     `Your chatting style: ${style}`,
     owner.learnedStyle
@@ -175,7 +195,7 @@ const EXHAUSTED = {
 };
 
 // ── Anthropic (Claude) backend ───────────────────────────────────────────────
-async function decideAnthropic(settings, history, incomingText) {
+async function decideAnthropic(settings, history, incomingText, examples) {
   const client = anthropicClientFor(settings.ai.apiKey);
   const messages = [
     ...history.map((m) => ({ role: m.role, content: m.content })),
@@ -191,7 +211,7 @@ async function decideAnthropic(settings, history, incomingText) {
         // empty/truncated message once thinking ate the budget.
         max_tokens: 1024,
         thinking: { type: 'adaptive' },
-        system: buildSystemPrompt(settings.owner),
+        system: buildSystemPrompt(settings.owner, examples),
         tools,
         messages,
       },
@@ -235,10 +255,10 @@ async function decideAnthropic(settings, history, incomingText) {
 }
 
 // ── DeepSeek (OpenAI-compatible) backend ─────────────────────────────────────
-async function decideDeepSeek(settings, history, incomingText) {
+async function decideDeepSeek(settings, history, incomingText, examples) {
   const client = deepseekClientFor(settings.ai.apiKey);
   const messages = [
-    { role: 'system', content: buildSystemPrompt(settings.owner) },
+    { role: 'system', content: buildSystemPrompt(settings.owner, examples) },
     ...history.map((m) => ({ role: m.role, content: m.content })),
     { role: 'user', content: incomingText },
   ];
@@ -297,8 +317,8 @@ const FRIENDLY_FALLBACK = "hey, give me a moment — I'll get right back to you 
 // Last-resort reply with no tools and no thinking. Works even on models that
 // don't support function calling (e.g. deepseek-reasoner) and rides out most
 // transient API errors, so the client always gets a real answer.
-async function plainReply(settings, history, incomingText) {
-  const sys = buildSystemPrompt(settings.owner);
+async function plainReply(settings, history, incomingText, examples) {
+  const sys = buildSystemPrompt(settings.owner, examples);
   const hist = history.map((m) => ({ role: m.role, content: m.content }));
   if (settings.ai.provider === 'deepseek') {
     const resp = await deepseekClientFor(settings.ai.apiKey).chat.completions.create(
@@ -401,11 +421,11 @@ async function composeFromOwner(settings, history, ownerNote) {
   }
 }
 
-async function decide(settings, history, incomingText) {
+async function decide(settings, history, incomingText, examples) {
   try {
     return settings.ai.provider === 'deepseek'
-      ? await decideDeepSeek(settings, history, incomingText)
-      : await decideAnthropic(settings, history, incomingText);
+      ? await decideDeepSeek(settings, history, incomingText, examples)
+      : await decideAnthropic(settings, history, incomingText, examples);
   } catch (err) {
     logger.error(
       { err: err.message, userId: settings.userId, provider: settings.ai.provider },
@@ -414,7 +434,7 @@ async function decide(settings, history, incomingText) {
     // The full tool/thinking call failed (model/tool incompatibility, transient
     // API error, timeout). Try a plain reply so the client still gets answered.
     try {
-      const text = await plainReply(settings, history, incomingText);
+      const text = await plainReply(settings, history, incomingText, examples);
       if (text) return { action: 'reply', text };
     } catch (err2) {
       logger.error({ err: err2.message, userId: settings.userId }, 'plain reply also failed');

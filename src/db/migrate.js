@@ -21,6 +21,18 @@ async function migrate() {
     logger.warn({ err: err.message }, 'could not create messages_user_wamsg_uniq index');
   }
 
+  // Full-text index over message content, for cross-chat "how did I answer a
+  // similar question before" retrieval. Non-fatal — retrieval just runs slower
+  // (or its query no-ops) if this can't be created.
+  try {
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS messages_content_fts_idx
+         ON messages USING gin (to_tsvector('simple', content))`,
+    );
+  } catch (err) {
+    logger.warn({ err: err.message }, 'could not create messages_content_fts_idx index');
+  }
+
   logger.info('Database schema is up to date.');
 }
 

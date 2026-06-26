@@ -207,9 +207,17 @@ async function respond({ userId, settings, remoteJid, chatKey, number, clientJid
   } catch (err) {
     logger.error({ err: err.message, userId }, 'failed to read history');
   }
+  // Cross-chat recall: how the owner answered similar questions in OTHER chats,
+  // given to the agent as guidance. Best-effort — never blocks a reply.
+  let examples = [];
+  try {
+    examples = await mem.findSimilarAnswered(userId, text, chatKey, 3);
+  } catch (_) {
+    /* recall is optional */
+  }
   let outcome;
   try {
-    outcome = await agent.decide(settings, history, text);
+    outcome = await agent.decide(settings, history, text, examples);
   } catch (err) {
     logger.error({ err: err.message, userId }, 'agent error');
     outcome = { action: 'escalate', reason: 'agent error', text: '' };
