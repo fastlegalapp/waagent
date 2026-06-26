@@ -15,6 +15,9 @@ const ready = require('../ready');
 function createApp() {
   const app = express();
   app.disable('x-powered-by');
+  // We run behind a reverse proxy (Coolify/agent panel); trust one hop so
+  // req.ip reflects the real client for rate limiting and the Secure cookie.
+  app.set('trust proxy', 1);
   app.use(express.json({ limit: '256kb' }));
   app.use(cookieParser());
 

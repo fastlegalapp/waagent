@@ -21,8 +21,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // message passes the gate, so a second message arriving while we're still
 // thinking/typing is throttled immediately.
 const lastReplyAt = new Map(); // `${userId}:${chatId}` -> epoch ms
+const LAST_REPLY_MAX = 50_000; // bound memory across many users/chats
 function noteReplyAt(userId, chatId, ms) {
-  lastReplyAt.set(`${userId}:${chatId}`, ms);
+  const key = `${userId}:${chatId}`;
+  // Re-insert so the key moves to the most-recent end (Map keeps insertion order).
+  lastReplyAt.delete(key);
+  lastReplyAt.set(key, ms);
+  if (lastReplyAt.size > LAST_REPLY_MAX) {
+    lastReplyAt.delete(lastReplyAt.keys().next().value); // evict oldest
+  }
 }
 
 function withinBusinessHours(reply) {

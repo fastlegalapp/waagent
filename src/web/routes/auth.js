@@ -10,7 +10,31 @@ const router = express.Router();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-router.post('/signup', async (req, res) => {
+// Simple in-memory fixed-window rate limiter to blunt credential-stuffing and
+// signup abuse. Keyed by client IP; bounded so it can't grow without limit.
+const WINDOW_MS = 15 * 60 * 1000;
+const MAX_ATTEMPTS = 20;
+const RL_MAX_KEYS = 10_000;
+const attempts = new Map(); // ip -> { count, resetAt }
+function rateLimit(req, res, next) {
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  const now = Date.now();
+  let rec = attempts.get(ip);
+  if (!rec || now > rec.resetAt) {
+    rec = { count: 0, resetAt: now + WINDOW_MS };
+    if (attempts.size > RL_MAX_KEYS) attempts.clear(); // crude bound; resets all windows
+    attempts.set(ip, rec);
+  }
+  rec.count += 1;
+  if (rec.count > MAX_ATTEMPTS) {
+    const retry = Math.ceil((rec.resetAt - now) / 1000);
+    res.set('Retry-After', String(retry));
+    return res.status(429).json({ error: 'Too many attempts. Please try again later.' });
+  }
+  return next();
+}
+
+router.post('/signup', rateLimit, async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const pw = String(req.body?.password || '');
 
@@ -31,7 +55,7 @@ router.post('/signup', async (req, res) => {
   }
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', rateLimit, async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const pw = String(req.body?.password || '');
   try {

@@ -179,7 +179,10 @@ async function decideAnthropic(settings, history, incomingText) {
     const response = await client.messages.create(
       {
         model: settings.ai.model,
-        max_tokens: 400,
+        // Roomy enough that adaptive thinking (which draws from max_tokens) can
+        // reason and still leave space for the actual reply — 400 risked an
+        // empty/truncated message once thinking ate the budget.
+        max_tokens: 1024,
         thinking: { type: 'adaptive' },
         system: buildSystemPrompt(settings.owner),
         tools,
@@ -237,7 +240,7 @@ async function decideDeepSeek(settings, history, incomingText) {
     const resp = await client.chat.completions.create(
       {
         model: settings.ai.model,
-        max_tokens: 400,
+        max_tokens: 1024,
         tools: openaiTools,
         tool_choice: 'auto',
         messages,
@@ -294,7 +297,7 @@ async function plainReply(settings, history, incomingText) {
     const resp = await deepseekClientFor(settings.ai.apiKey).chat.completions.create(
       {
         model: settings.ai.model,
-        max_tokens: 400,
+        max_tokens: 1024,
         messages: [{ role: 'system', content: sys }, ...hist, { role: 'user', content: incomingText }],
       },
       { timeout: 60_000 },
@@ -304,7 +307,7 @@ async function plainReply(settings, history, incomingText) {
   const resp = await anthropicClientFor(settings.ai.apiKey).messages.create(
     {
       model: settings.ai.model,
-      max_tokens: 400,
+      max_tokens: 1024,
       system: sys,
       messages: [...hist, { role: 'user', content: incomingText }],
     },
