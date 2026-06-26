@@ -85,6 +85,19 @@ router.put('/', async (req, res) => {
   if (Number.isInteger(b.minIntervalSeconds)) {
     patch.min_interval_seconds = Math.max(0, Math.min(3600, b.minIntervalSeconds));
   }
+  // Reply delay range (human-like pause before replying). Clamp 0–120s and
+  // keep max >= min so the range is always valid.
+  if (Number.isInteger(b.replyDelayMin)) {
+    patch.reply_delay_min_seconds = Math.max(0, Math.min(120, b.replyDelayMin));
+  }
+  if (Number.isInteger(b.replyDelayMax)) {
+    patch.reply_delay_max_seconds = Math.max(0, Math.min(120, b.replyDelayMax));
+  }
+  if (patch.reply_delay_min_seconds != null || patch.reply_delay_max_seconds != null) {
+    const lo = patch.reply_delay_min_seconds;
+    const hi = patch.reply_delay_max_seconds;
+    if (lo != null && hi != null && hi < lo) patch.reply_delay_max_seconds = lo;
+  }
   if (typeof b.followupsEnabled === 'boolean') patch.followups_enabled = b.followupsEnabled;
   if (Number.isInteger(b.followupsHours)) {
     patch.followups_hours = Math.max(1, Math.min(720, b.followupsHours));

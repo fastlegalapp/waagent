@@ -283,6 +283,15 @@
                   </label>
                 </div>
                 <div class="grid2">
+                  <label>Reply delay — min (seconds)
+                    <input type="number" id="replyDelayMin" min="0" max="120" />
+                  </label>
+                  <label>Reply delay — max (seconds)
+                    <input type="number" id="replyDelayMax" min="0" max="120" />
+                  </label>
+                </div>
+                <p class="hint">The agent waits a random pause in this range — reading, then typing — before each reply, so it feels human instead of instant. Set both to 0 for instant replies.</p>
+                <div class="grid2">
                   <label>Business hours start (0–23, blank = always)
                     <input type="number" id="businessHoursStart" min="0" max="23" />
                   </label>

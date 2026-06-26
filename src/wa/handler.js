@@ -111,8 +111,20 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
   // database write fails. Shows a typing indicator and a short, human-like pause
   // (scaled to message length, capped) so it doesn't feel like an instant bot.
   const reply = async (body) => {
-    await showTyping(remoteJid, 'composing');
-    await sleep(Math.min(700 + body.length * 25, 5000));
+    // Human-like gap: a brief "reading" pause, then the typing indicator, then
+    // the message — total time is a random value in the owner's configured
+    // [min, max] range (so replies aren't instant and don't feel robotic).
+    const lo = Math.max(0, Number(settings.reply.delayMinSeconds) || 0);
+    const hi = Math.max(lo, Number(settings.reply.delayMaxSeconds) || 0);
+    const totalMs = (lo === hi ? lo : lo + Math.random() * (hi - lo)) * 1000;
+    if (totalMs > 0) {
+      const readMs = Math.min(totalMs * 0.35, 2000); // pause "reading" before typing
+      await sleep(readMs);
+      await showTyping(remoteJid, 'composing');
+      await sleep(totalMs - readMs);
+    } else {
+      await showTyping(remoteJid, 'composing');
+    }
     const sent = await send(remoteJid, body);
     await showTyping(remoteJid, 'paused');
     noteReplyAt(userId, chatKey, Date.now());

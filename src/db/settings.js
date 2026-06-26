@@ -20,6 +20,8 @@ const UPDATABLE = new Set([
   'blocklist',
   'ignore_groups',
   'min_interval_seconds',
+  'reply_delay_min_seconds',
+  'reply_delay_max_seconds',
   'followups_enabled',
   'followups_hours',
   'business_hours_start',

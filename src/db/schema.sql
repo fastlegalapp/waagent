@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS user_settings (
   blocklist              TEXT NOT NULL DEFAULT '',
   ignore_groups          BOOLEAN NOT NULL DEFAULT true,
   min_interval_seconds   INTEGER NOT NULL DEFAULT 2,
+  reply_delay_min_seconds INTEGER NOT NULL DEFAULT 2,  -- human-like pause before replying
+  reply_delay_max_seconds INTEGER NOT NULL DEFAULT 6,
   followups_enabled      BOOLEAN NOT NULL DEFAULT false,    -- nudge clients who go quiet
   followups_hours        INTEGER NOT NULL DEFAULT 24,       -- after this many hours of silence
   business_hours_start   INTEGER,                       -- 0-23, NULL = always on
@@ -74,6 +76,8 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS ts BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS persona_style TEXT NOT NULL DEFAULT 'friendly';
 ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS persona_custom TEXT NOT NULL DEFAULT '';
 ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS faqs TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS reply_delay_min_seconds INTEGER NOT NULL DEFAULT 2;
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS reply_delay_max_seconds INTEGER NOT NULL DEFAULT 6;
 ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS learned_style TEXT NOT NULL DEFAULT '';
 ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS learned_style_at TIMESTAMPTZ;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS source TEXT;

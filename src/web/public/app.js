@@ -153,6 +153,8 @@ function fillSettings(s) {
   $('allowlist').value = s.allowlist || '';
   $('blocklist').value = s.blocklist || '';
   $('minIntervalSeconds').value = s.minIntervalSeconds ?? 2;
+  $('replyDelayMin').value = s.replyDelayMin ?? 2;
+  $('replyDelayMax').value = s.replyDelayMax ?? 6;
   $('followupsEnabled').checked = s.followupsEnabled === true;
   $('followupsHours').value = s.followupsHours ?? 24;
   $('businessHoursStart').value = s.businessHoursStart ?? '';
@@ -193,6 +195,8 @@ $('settingsForm').onsubmit = async (e) => {
     allowlist: $('allowlist').value,
     blocklist: $('blocklist').value,
     minIntervalSeconds: intOrNull($('minIntervalSeconds').value) ?? 2,
+    replyDelayMin: intOrNull($('replyDelayMin').value) ?? 2,
+    replyDelayMax: intOrNull($('replyDelayMax').value) ?? 6,
     followupsEnabled: $('followupsEnabled').checked,
     followupsHours: intOrNull($('followupsHours').value) ?? 24,
     businessHoursStart: intOrNull($('businessHoursStart').value),

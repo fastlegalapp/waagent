@@ -63,6 +63,8 @@ async function resolve(userId) {
       blocklist: parseList(row.blocklist),
       ignoreGroups: row.ignore_groups !== false,
       minIntervalSeconds: Number(row.min_interval_seconds || 2),
+      delayMinSeconds: Number(row.reply_delay_min_seconds ?? 2),
+      delayMaxSeconds: Number(row.reply_delay_max_seconds ?? 6),
       businessHoursStart: row.business_hours_start,
       businessHoursEnd: row.business_hours_end,
       followups: {
@@ -96,6 +98,8 @@ async function sanitize(userId) {
     blocklist: row.blocklist,
     ignoreGroups: row.ignore_groups,
     minIntervalSeconds: row.min_interval_seconds,
+    replyDelayMin: row.reply_delay_min_seconds ?? 2,
+    replyDelayMax: row.reply_delay_max_seconds ?? 6,
     followupsEnabled: row.followups_enabled === true,
     followupsHours: Number(row.followups_hours || 24),
     businessHoursStart: row.business_hours_start,
