@@ -198,6 +198,44 @@ async function recordOrder(userId, order) {
   return fields;
 }
 
+// Loose phone match (country-code optional), mirrors message-utils.
+function loosePhoneMatch(a, b) {
+  const x = String(a || '').replace(/[^0-9]/g, '');
+  const y = String(b || '').replace(/[^0-9]/g, '');
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const min = Math.min(x.length, y.length);
+  return min >= 8 && (x.endsWith(y) || y.endsWith(x));
+}
+
+// Mark a client's most recent un-paid order (in the "Orders" list) as paid.
+// Returns the updated order, or null if there's no open order for them.
+async function markOrderPaid(userId, customerNumber, note) {
+  const all = await listLists(userId);
+  const ordersList = all.find((l) => l.name && l.name.toLowerCase() === 'orders');
+  if (!ordersList) return null;
+  const items = await listItems(userId, ordersList.id, 2000);
+  const match = [...items].reverse().find((it) => {
+    const f = it.fields || {};
+    return (
+      String(f.status || '').toLowerCase() !== 'paid' &&
+      loosePhoneMatch(f.customer, customerNumber)
+    );
+  });
+  if (!match) return null;
+  const now = new Date();
+  const patch = {
+    status: 'paid',
+    paid_at: `${now.toISOString().slice(0, 10)} ${now.toISOString().slice(11, 16)}`,
+  };
+  if (note) patch.payment_note = String(note).slice(0, 500);
+  await query(
+    `UPDATE data_items SET fields = fields || $2::jsonb WHERE id = $1 AND user_id = $3`,
+    [match.id, JSON.stringify(patch), userId],
+  );
+  return { id: match.id, fields: { ...match.fields, ...patch } };
+}
+
 function viewList(r) {
   return {
     id: r.id,
@@ -225,6 +263,7 @@ module.exports = {
   getDirectory,
   searchItems,
   recordOrder,
+  markOrderPaid,
   remindableLists,
   itemsForReminder,
   markReminded,

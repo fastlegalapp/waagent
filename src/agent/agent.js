@@ -149,8 +149,9 @@ function buildSystemPrompt(owner, examples) {
     `financial, or medical advice — escalate anything needing ${name}'s real judgement.`,
     'Tools: look up products/prices/customers/dues → lookup_list. Client wants to',
     'see a product → send_photo. Collecting payment / "how do I pay" → send_payment_qr.',
-    'Client confirmed an order → record_order. Document requests → find_document.',
-    'Spam / wrong number → do_not_reply. You can both call a tool AND send a reply.',
+    'Client confirmed an order → record_order. Client says they have paid →',
+    'mark_order_paid. Document requests → find_document. Spam / wrong number →',
+    'do_not_reply. You can both call a tool AND send a reply.',
     '',
     'Reply with just the text to send, or call exactly one tool.',
   ]
@@ -258,6 +259,24 @@ const tools = [
     },
   },
   {
+    name: 'mark_order_paid',
+    description:
+      "Mark this client's most recent order as paid. Use ONLY when the client " +
+      "clearly says they have paid / done the payment / sent the money. The owner " +
+      'is notified to verify.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        note: {
+          type: 'string',
+          description: 'Any payment reference the client gave (txn id, UTR, time).',
+        },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'do_not_reply',
     description:
       'Send nothing. Use for spam, wrong numbers, hostile messages, or anything ' +
@@ -335,6 +354,21 @@ async function runTool(name, input, settings, actions = {}) {
       return JSON.stringify({ recorded: true, order: saved });
     } catch (err) {
       return JSON.stringify({ recorded: false, reason: 'could not record the order' });
+    }
+  }
+  if (name === 'mark_order_paid') {
+    try {
+      const order = await lists.markOrderPaid(settings.userId, actions.customerNumber, input.note);
+      if (!order) return JSON.stringify({ marked: false, reason: 'no open order found for this client' });
+      if (actions.notifyOwner) {
+        const what = order.fields && order.fields.items ? ` for: ${order.fields.items}` : '';
+        await actions.notifyOwner(
+          `💰 ${actions.customerNumber} says they've paid${what}. I've marked the order as PAID — please verify against your account.`,
+        );
+      }
+      return JSON.stringify({ marked: true, order });
+    } catch (err) {
+      return JSON.stringify({ marked: false, reason: 'could not update the order' });
     }
   }
   return JSON.stringify({ ok: true });

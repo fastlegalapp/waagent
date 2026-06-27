@@ -219,6 +219,7 @@ async function respond({ userId, settings, remoteJid, chatKey, number, clientJid
   // payment QR to this chat, tag an order with the client's number).
   const actions = {
     sendImage: sendImage ? (content, caption) => sendImage(remoteJid, content, caption) : null,
+    notifyOwner: notifyOwner ? (textToOwner) => notifyOwner(textToOwner, clientJid) : null,
     customerNumber: number,
   };
   let outcome;
