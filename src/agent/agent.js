@@ -5,6 +5,24 @@ const OpenAI = require('openai');
 const logger = require('../logger');
 const drive = require('./tools/drive');
 const lists = require('../db/lists');
+const settingsDb = require('../db/settings');
+
+// Pull an image URL out of a list row's fields (an image/photo column, or any
+// value that looks like an image URL).
+function imageUrlOf(fields) {
+  if (!fields || typeof fields !== 'object') return null;
+  for (const k of Object.keys(fields)) {
+    if (/^(image|images|photo|photos|pic|picture|img|thumbnail|url|link)$/i.test(k)) {
+      const v = String(fields[k] || '');
+      if (/^https?:\/\//i.test(v)) return v;
+    }
+  }
+  for (const k of Object.keys(fields)) {
+    const v = String(fields[k] || '');
+    if (/^https?:\/\/.+\.(jpg|jpeg|png|webp|gif)(\?|#|$)/i.test(v)) return v;
+  }
+  return null;
+}
 
 const DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
 
@@ -129,7 +147,10 @@ function buildSystemPrompt(owner, examples) {
     'Honesty: never invent specifics (prices, dates, details) — if unsure, escalate with',
     `a short note like "let me check and get right back to you". No binding legal,`,
     `financial, or medical advice — escalate anything needing ${name}'s real judgement.`,
-    'Document requests → find_document. Spam / wrong number → do_not_reply.',
+    'Tools: look up products/prices/customers/dues → lookup_list. Client wants to',
+    'see a product → send_photo. Collecting payment / "how do I pay" → send_payment_qr.',
+    'Client confirmed an order → record_order. Document requests → find_document.',
+    'Spam / wrong number → do_not_reply. You can both call a tool AND send a reply.',
     '',
     'Reply with just the text to send, or call exactly one tool.',
   ]
@@ -190,6 +211,53 @@ const tools = [
     },
   },
   {
+    name: 'send_photo',
+    description:
+      "Send the client a photo of a product/item from the owner's lists. Use when " +
+      'the client asks to see a product, its photo/picture/image, or how it looks. ' +
+      'Looks the item up by query and sends its image if one is on file.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Which product/item to show (name or keyword).' },
+        caption: { type: 'string', description: 'A short caption to send with the photo.' },
+      },
+      required: ['query'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'send_payment_qr',
+    description:
+      "Send the owner's payment QR code so the client can pay. Use when collecting " +
+      'payment or when the client asks how to pay. Only works if the owner uploaded a QR.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        caption: { type: 'string', description: 'A short caption, e.g. the amount to pay.' },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'record_order',
+    description:
+      'Record an order the client placed so the owner can fulfil it. Use once the ' +
+      'client confirms what they want to buy.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        items: { type: 'string', description: 'What they ordered (products and quantities).' },
+        total: { type: 'string', description: 'Total amount, if known.' },
+        customer: { type: 'string', description: "Client's name, if known." },
+        notes: { type: 'string', description: 'Any delivery address or special instructions.' },
+      },
+      required: ['items'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'do_not_reply',
     description:
       'Send nothing. Use for spam, wrong numbers, hostile messages, or anything ' +
@@ -219,7 +287,7 @@ function safeParse(json) {
   }
 }
 
-async function runTool(name, input, settings) {
+async function runTool(name, input, settings, actions = {}) {
   if (name === 'find_document') {
     return JSON.stringify(await drive.findDocument(settings, input.query));
   }
@@ -229,6 +297,44 @@ async function runTool(name, input, settings) {
       return JSON.stringify({ results });
     } catch (err) {
       return JSON.stringify({ results: [], error: 'lookup failed' });
+    }
+  }
+  if (name === 'send_photo') {
+    try {
+      const matches = await lists.searchItems(settings.userId, input.query, 6);
+      const hit = matches.map((m) => m.fields).find((f) => imageUrlOf(f));
+      const url = hit ? imageUrlOf(hit) : null;
+      if (!url) return JSON.stringify({ sent: false, reason: 'no photo on file for that item' });
+      if (!actions.sendImage) return JSON.stringify({ sent: false, reason: 'cannot send right now' });
+      await actions.sendImage({ url }, input.caption || '');
+      return JSON.stringify({ sent: true });
+    } catch (err) {
+      return JSON.stringify({ sent: false, reason: 'photo send failed' });
+    }
+  }
+  if (name === 'send_payment_qr') {
+    try {
+      const row = await settingsDb.getRaw(settings.userId);
+      const qr = row && row.payment_qr;
+      if (!qr) return JSON.stringify({ sent: false, reason: 'owner has not set a payment QR' });
+      if (!actions.sendImage) return JSON.stringify({ sent: false, reason: 'cannot send right now' });
+      await actions.sendImage({ base64: qr }, input.caption || 'Scan this QR to pay 🙏');
+      return JSON.stringify({ sent: true });
+    } catch (err) {
+      return JSON.stringify({ sent: false, reason: 'qr send failed' });
+    }
+  }
+  if (name === 'record_order') {
+    try {
+      const saved = await lists.recordOrder(settings.userId, {
+        items: input.items,
+        total: input.total,
+        customer: input.customer || actions.customerNumber || '',
+        notes: input.notes,
+      });
+      return JSON.stringify({ recorded: true, order: saved });
+    } catch (err) {
+      return JSON.stringify({ recorded: false, reason: 'could not record the order' });
     }
   }
   return JSON.stringify({ ok: true });
@@ -241,7 +347,7 @@ const EXHAUSTED = {
 };
 
 // ── Anthropic (Claude) backend ───────────────────────────────────────────────
-async function decideAnthropic(settings, history, incomingText, examples) {
+async function decideAnthropic(settings, history, incomingText, examples, actions) {
   const client = anthropicClientFor(settings.ai.apiKey);
   const messages = [
     ...history.map((m) => ({ role: m.role, content: m.content })),
@@ -292,7 +398,7 @@ async function decideAnthropic(settings, history, incomingText, examples) {
     messages.push({ role: 'assistant', content: response.content });
     const toolResults = [];
     for (const t of toolUses) {
-      const out = await runTool(t.name, t.input, settings);
+      const out = await runTool(t.name, t.input, settings, actions);
       toolResults.push({ type: 'tool_result', tool_use_id: t.id, content: out });
     }
     messages.push({ role: 'user', content: toolResults });
@@ -301,7 +407,7 @@ async function decideAnthropic(settings, history, incomingText, examples) {
 }
 
 // ── DeepSeek (OpenAI-compatible) backend ─────────────────────────────────────
-async function decideDeepSeek(settings, history, incomingText, examples) {
+async function decideDeepSeek(settings, history, incomingText, examples, actions) {
   const client = deepseekClientFor(settings.ai.apiKey);
   const messages = [
     { role: 'system', content: buildSystemPrompt(settings.owner, examples) },
@@ -342,7 +448,7 @@ async function decideDeepSeek(settings, history, incomingText, examples) {
 
     messages.push(msg);
     for (const c of calls) {
-      const out = await runTool(c.function.name, safeParse(c.function.arguments), settings);
+      const out = await runTool(c.function.name, safeParse(c.function.arguments), settings, actions);
       messages.push({ role: 'tool', tool_call_id: c.id, content: out });
     }
   }
@@ -467,11 +573,11 @@ async function composeFromOwner(settings, history, ownerNote) {
   }
 }
 
-async function decide(settings, history, incomingText, examples) {
+async function decide(settings, history, incomingText, examples, actions) {
   try {
     return settings.ai.provider === 'deepseek'
-      ? await decideDeepSeek(settings, history, incomingText, examples)
-      : await decideAnthropic(settings, history, incomingText, examples);
+      ? await decideDeepSeek(settings, history, incomingText, examples, actions)
+      : await decideAnthropic(settings, history, incomingText, examples, actions);
   } catch (err) {
     logger.error(
       { err: err.message, userId: settings.userId, provider: settings.ai.provider },
@@ -515,4 +621,12 @@ async function testKey(settings) {
   }
 }
 
-module.exports = { decide, testKey, learnStyle, composeFollowup, composeFromOwner, STYLE_KEYS };
+module.exports = {
+  decide,
+  runTool,
+  testKey,
+  learnStyle,
+  composeFollowup,
+  composeFromOwner,
+  STYLE_KEYS,
+};

@@ -19,7 +19,7 @@ function createApp() {
   // We run behind a reverse proxy (Coolify/agent panel); trust one hop so
   // req.ip reflects the real client for rate limiting and the Secure cookie.
   app.set('trust proxy', 1);
-  app.use(express.json({ limit: '256kb' }));
+  app.use(express.json({ limit: '2mb' })); // room for an uploaded payment-QR data URL
   app.use(cookieParser());
 
   // API

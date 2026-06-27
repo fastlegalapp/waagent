@@ -128,6 +128,7 @@
             <button data-nav="persona">🗣️ Persona &amp; Instructions</button>
             <button data-nav="faqs">📋 Quick Answers</button>
             <button data-nav="lists">📦 Lists</button>
+            <button data-nav="payments">💳 Payments</button>
             <button data-nav="ai">🔑 AI Provider</button>
             <button data-nav="replies">⚙️ Replies &amp; Follow-ups</button>
           </nav>
@@ -216,6 +217,26 @@
                 <span id="csvResult" class="muted"></span>
               </div>
             </div>
+          </section>
+
+          <!-- PAYMENTS (not part of the settings form) -->
+          <section class="panel hidden" data-panel="payments">
+            <h2>Payment QR</h2>
+            <p class="muted">Upload your payment QR (UPI / bank). When a client is ready to pay,
+              the agent sends them this QR to scan — no payment gateway needed.</p>
+            <div class="qr-upload">
+              <img id="qrPreview" class="qr-preview hidden" alt="Payment QR" />
+              <p id="qrNone" class="muted small">No QR uploaded yet.</p>
+            </div>
+            <div class="row">
+              <label class="upload-btn">Upload QR
+                <input type="file" id="qrFile" accept="image/png,image/jpeg,image/webp" hidden />
+              </label>
+              <button type="button" id="qrRemoveBtn" class="danger hidden">Remove</button>
+              <span id="qrMsg" class="muted"></span>
+            </div>
+            <p class="hint">Tell the agent when to send it — e.g. in a list's instructions:
+              “after the client confirms an order, send the payment QR”.</p>
           </section>
 
           <!-- SETTINGS FORM (persona / ai / replies) -->

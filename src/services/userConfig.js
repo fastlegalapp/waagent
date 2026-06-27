@@ -96,6 +96,7 @@ async function sanitize(userId) {
     personaStyle: row.persona_style || 'friendly',
     personaCustom: row.persona_custom || '',
     faqs: parseFaqs(row.faqs),
+    hasPaymentQr: !!(row.payment_qr && row.payment_qr.length),
     learnedStyle: row.learned_style || '',
     learnedStyleAt: row.learned_style_at || null,
     provider: row.provider || 'anthropic',

@@ -34,6 +34,17 @@ router.get('/', async (req, res) => {
   res.json({ settings: view });
 });
 
+// The uploaded payment-QR image (data URL), for preview in the dashboard.
+router.get('/payment-qr', async (req, res) => {
+  try {
+    const row = await settingsDb.getRaw(req.userId);
+    res.json({ qr: (row && row.payment_qr) || null });
+  } catch (err) {
+    logger.error({ err: err.message, userId: req.userId }, 'payment-qr fetch failed');
+    res.status(500).json({ error: 'Could not load the QR.' });
+  }
+});
+
 // Learn how the owner talks from their real past messages, now.
 router.post('/learn-style', async (req, res) => {
   try {
@@ -70,6 +81,14 @@ router.put('/', async (req, res) => {
       }))
       .filter((f) => f.q && f.a);
     patch.faqs = JSON.stringify(faqs);
+  }
+  // Payment QR image (data URL). Empty string clears it.
+  if (typeof b.paymentQr === 'string') {
+    const v = b.paymentQr.trim();
+    if (v === '') patch.payment_qr = '';
+    else if (/^data:image\/(png|jpe?g|webp);base64,/i.test(v) && v.length < 1500000) {
+      patch.payment_qr = v;
+    }
   }
   if (typeof b.model === 'string' && b.model) patch.anthropic_model = b.model.slice(0, 100);
 

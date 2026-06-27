@@ -241,6 +241,33 @@ async function connect(userId) {
     }
   };
   entry.send = send;
+
+  // Send an image to a chat. `content` is { url } (Baileys fetches it) or
+  // { base64 } (a data URL or raw base64 — used for the uploaded payment QR).
+  const sendImage = async (jid, content, caption) => {
+    try {
+      let image;
+      if (content && content.url) {
+        image = { url: content.url };
+      } else if (content && content.base64) {
+        const b64 = String(content.base64).replace(/^data:[^,]*,/, '');
+        image = Buffer.from(b64, 'base64');
+      } else {
+        return null;
+      }
+      const sent = await sock.sendMessage(jid, { image, caption: caption || '' });
+      if (sent?.key?.id) {
+        cacheMsg(userId, sent.key.id, sent.message);
+        markBotSent(userId, sent.key.id);
+      }
+      act(userId).lastSentAt = Date.now();
+      return sent;
+    } catch (err) {
+      logger.error({ err: err.message, userId, jid }, 'failed to send image');
+      return null;
+    }
+  };
+
   const ownNumber = () => numberFromJid(sock.user?.id);
   const selfJid = () => `${ownNumber()}@s.whatsapp.net`;
   const isSelfChat = (jid) => {
@@ -505,7 +532,7 @@ async function connect(userId) {
     };
     for (const msg of messages) {
       try {
-        await handleMessage({ userId, settings, msg, send, notifyOwner, typing, note });
+        await handleMessage({ userId, settings, msg, send, sendImage, notifyOwner, typing, note });
       } catch (err) {
         logger.error({ err: err.message, userId }, 'handler error');
         note('handler_error');

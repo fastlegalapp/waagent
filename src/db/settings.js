@@ -10,6 +10,7 @@ const UPDATABLE = new Set([
   'persona_style',
   'persona_custom',
   'faqs',
+  'payment_qr',
   'provider',
   'anthropic_api_key_enc',
   'anthropic_model',

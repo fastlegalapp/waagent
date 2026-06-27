@@ -62,7 +62,7 @@ $('logoutBtn').onclick = async () => {
 
 // ── Sidebar nav ──────────────────────────────────────────────────────────────
 // Standalone panels live directly under .content; the rest live in #settingsForm.
-const STANDALONE_PANELS = ['connect', 'lists'];
+const STANDALONE_PANELS = ['connect', 'lists', 'payments'];
 function showPanel(name) {
   document.querySelectorAll('.side-nav button').forEach((b) =>
     b.classList.toggle('active', b.dataset.nav === name),
@@ -76,6 +76,7 @@ function showPanel(name) {
     p.classList.toggle('hidden', p.dataset.panel !== name),
   );
   if (name === 'lists') loadLists();
+  if (name === 'payments') loadPaymentQr();
 }
 document.querySelectorAll('.side-nav button').forEach((b) => {
   b.onclick = () => { showPanel(b.dataset.nav); closeNav(); };
@@ -446,6 +447,46 @@ async function deleteItem(itemId) {
   await loadItems();
   loadLists();
 }
+
+// ── Payment QR ───────────────────────────────────────────────────────────────
+async function loadPaymentQr() {
+  let qr = null;
+  try { ({ qr } = await api('/api/settings/payment-qr')); } catch (_) {}
+  const img = $('qrPreview');
+  if (qr) {
+    img.src = qr;
+    img.classList.remove('hidden');
+    $('qrNone').classList.add('hidden');
+    $('qrRemoveBtn').classList.remove('hidden');
+  } else {
+    img.classList.add('hidden');
+    $('qrNone').classList.remove('hidden');
+    $('qrRemoveBtn').classList.add('hidden');
+  }
+}
+$('qrFile').onchange = () => {
+  const file = $('qrFile').files[0];
+  if (!file) return;
+  if (file.size > 1200000) { $('qrMsg').textContent = 'Image too large (max ~1MB).'; return; }
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      await api('/api/settings', { method: 'PUT', body: JSON.stringify({ paymentQr: reader.result }) });
+      $('qrMsg').textContent = 'Saved.';
+      setTimeout(() => ($('qrMsg').textContent = ''), 2000);
+      loadPaymentQr();
+    } catch (e) {
+      $('qrMsg').textContent = e.message;
+    }
+  };
+  reader.readAsDataURL(file);
+  $('qrFile').value = '';
+};
+$('qrRemoveBtn').onclick = async () => {
+  if (!confirm('Remove the payment QR?')) return;
+  await api('/api/settings', { method: 'PUT', body: JSON.stringify({ paymentQr: '' }) });
+  loadPaymentQr();
+};
 
 // ── WhatsApp linking ─────────────────────────────────────────────────────────
 let pollTimer = null;

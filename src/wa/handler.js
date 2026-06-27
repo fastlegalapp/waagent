@@ -58,7 +58,7 @@ const PENDING_MAX = 50_000;
  * Handle one incoming WhatsApp message: validate, store it, and (if the agent
  * should reply) schedule a single contextual response once the client pauses.
  */
-async function handleMessage({ userId, settings, msg, send, notifyOwner, typing, note }) {
+async function handleMessage({ userId, settings, msg, send, sendImage, notifyOwner, typing, note }) {
   const mark = (status) => {
     try {
       if (note) note(status);
@@ -128,7 +128,7 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
   const lo = Math.max(0, Number(settings.reply.delayMinSeconds) || 0);
   const hi = Math.max(lo, Number(settings.reply.delayMaxSeconds) || 0);
   const waitMs = (lo === hi ? lo : lo + Math.random() * (hi - lo)) * 1000;
-  const ctx = { userId, settings, remoteJid, chatKey, number, clientJid, clientName, text, send, notifyOwner, typing, note };
+  const ctx = { userId, settings, remoteJid, chatKey, number, clientJid, clientName, text, send, sendImage, notifyOwner, typing, note };
   const timer = setTimeout(() => {
     pending.delete(key);
     respond(ctx).catch((err) => {
@@ -147,7 +147,7 @@ async function handleMessage({ userId, settings, msg, send, notifyOwner, typing,
 // Produce and send one reply for a chat, using the full stored history as
 // context. Runs after the gather window, so the client's whole burst is already
 // persisted and visible to the agent.
-async function respond({ userId, settings, remoteJid, chatKey, number, clientJid, clientName, text, send, notifyOwner, typing, note }) {
+async function respond({ userId, settings, remoteJid, chatKey, number, clientJid, clientName, text, send, sendImage, notifyOwner, typing, note }) {
   const showTyping = typing || (async () => {});
   const mark = (status) => {
     try {
@@ -215,9 +215,15 @@ async function respond({ userId, settings, remoteJid, chatKey, number, clientJid
   } catch (_) {
     /* recall is optional */
   }
+  // Actions the agent's tools can perform mid-reply (send a product photo / the
+  // payment QR to this chat, tag an order with the client's number).
+  const actions = {
+    sendImage: sendImage ? (content, caption) => sendImage(remoteJid, content, caption) : null,
+    customerNumber: number,
+  };
   let outcome;
   try {
-    outcome = await agent.decide(settings, history, text, examples);
+    outcome = await agent.decide(settings, history, text, examples, actions);
   } catch (err) {
     logger.error({ err: err.message, userId }, 'agent error');
     outcome = { action: 'escalate', reason: 'agent error', text: '' };

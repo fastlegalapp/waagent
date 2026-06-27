@@ -170,6 +170,34 @@ async function markReminded(itemId) {
   await query(`UPDATE data_items SET last_reminded_at = now() WHERE id = $1`, [itemId]);
 }
 
+// Record an order the agent captured into the user's "Orders" list (created on
+// first use), so it shows up in the dashboard like any other list.
+async function recordOrder(userId, order) {
+  let { rows } = await query(
+    `SELECT id FROM data_lists WHERE user_id = $1 AND lower(name) = 'orders' LIMIT 1`,
+    [userId],
+  );
+  let listId = rows[0] && rows[0].id;
+  if (!listId) {
+    const created = await createList(userId, 'Orders');
+    listId = created.id;
+    await updateList(userId, listId, {
+      instructions: 'Orders the agent has captured. Each row is one order.',
+    });
+  }
+  const now = new Date();
+  const fields = {
+    customer: String(order.customer || '').slice(0, 200),
+    items: String(order.items || '').slice(0, 2000),
+    total: String(order.total || '').slice(0, 100),
+    notes: String(order.notes || '').slice(0, 1000),
+    status: 'new',
+    created_at: `${now.toISOString().slice(0, 10)} ${now.toISOString().slice(11, 16)}`,
+  };
+  await addItems(userId, listId, [fields]);
+  return fields;
+}
+
 function viewList(r) {
   return {
     id: r.id,
@@ -196,6 +224,7 @@ module.exports = {
   clearItems,
   getDirectory,
   searchItems,
+  recordOrder,
   remindableLists,
   itemsForReminder,
   markReminded,

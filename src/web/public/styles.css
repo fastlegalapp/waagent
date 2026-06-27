@@ -222,6 +222,19 @@ legend { color: var(--muted); font-size: 13px; padding: 0 6px; font-weight: 600;
   .faq-row .faq-a { grid-column: 1 / -1; }
 }
 
+/* Payment QR */
+.qr-upload { margin: 14px 0; }
+.qr-preview {
+  width: 220px; height: 220px; object-fit: contain;
+  background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px;
+}
+.upload-btn {
+  display: inline-block; cursor: pointer; margin: 0;
+  background: #fff; color: var(--text); border: 1px solid var(--line);
+  border-radius: 12px; padding: 11px 18px; font-size: 14px; font-weight: 700;
+}
+.upload-btn:hover { border-color: #d7dbe0; background: #fafbfc; }
+
 /* Data Lists */
 .lists-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 14px 0 6px; }
 .list-chips { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
