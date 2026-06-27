@@ -149,9 +149,12 @@ function buildSystemPrompt(owner, examples) {
     `financial, or medical advice — escalate anything needing ${name}'s real judgement.`,
     'Tools: look up products/prices/customers/dues → lookup_list. Client wants to',
     'see a product → send_photo. Collecting payment / "how do I pay" → send_payment_qr.',
-    'Client confirmed an order → record_order. Client says they have paid →',
-    'mark_order_paid. Document requests → find_document. Spam / wrong number →',
-    'do_not_reply. You can both call a tool AND send a reply.',
+    'Client confirmed an order → record_order. Client says they have paid (or sends',
+    'a payment screenshot that shows a SUCCESSFUL transaction) → mark_order_paid,',
+    'then confirm warmly and tell them what happens next. If a screenshot looks',
+    'failed, pending, edited, or the amount is wrong, do NOT mark paid — point out',
+    'the issue politely or escalate. Document requests → find_document. Spam / wrong',
+    'number → do_not_reply. You can both call a tool AND send a reply.',
     '',
     'Reply with just the text to send, or call exactly one tool.',
   ]
@@ -607,6 +610,51 @@ async function composeFromOwner(settings, history, ownerNote) {
   }
 }
 
+// Look at an image the client sent (e.g. a payment screenshot) and return a
+// short description. Vision is Claude-only for now; returns null on other
+// providers or any error, so the caller can fall back gracefully.
+async function analyzeImage(settings, media) {
+  if (!settings?.ai?.apiKey || !media?.base64) return null;
+  if (settings.ai.provider !== 'anthropic') return null;
+  const mime = /^image\/(png|jpe?g|webp|gif)$/i.test(media.mime || '') ? media.mime : 'image/jpeg';
+  try {
+    const resp = await anthropicClientFor(settings.ai.apiKey).messages.create(
+      {
+        model: settings.ai.model,
+        max_tokens: 300,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: mime, data: media.base64 } },
+              {
+                type: 'text',
+                text:
+                  'Describe this image in 1-3 short sentences. If it is a payment / ' +
+                  'UPI / bank transaction screenshot, state clearly: the amount, who it ' +
+                  'was paid to, the status (successful / failed / pending), the reference ' +
+                  'or UTR number, and the date — exactly as shown. If anything is unclear ' +
+                  'or looks edited, say so.',
+              },
+            ],
+          },
+        ],
+      },
+      { timeout: 60_000 },
+    );
+    return (
+      resp.content
+        .filter((b) => b.type === 'text')
+        .map((b) => b.text)
+        .join('')
+        .trim() || null
+    );
+  } catch (err) {
+    logger.error({ err: err.message, userId: settings.userId }, 'image analysis failed');
+    return null;
+  }
+}
+
 async function decide(settings, history, incomingText, examples, actions) {
   try {
     return settings.ai.provider === 'deepseek'
@@ -657,6 +705,7 @@ async function testKey(settings) {
 
 module.exports = {
   decide,
+  analyzeImage,
   runTool,
   testKey,
   learnStyle,

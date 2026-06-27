@@ -57,6 +57,12 @@ function quotedText(message) {
   return quoted ? extractText(quoted) : '';
 }
 
+// The imageMessage node, if this message is (or wraps) an image.
+function imageNode(message) {
+  const m = unwrap(message);
+  return m && m.imageMessage ? m.imageMessage : null;
+}
+
 function numberFromJid(jid) {
   return (jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
 }
@@ -110,6 +116,7 @@ function isIgnorable(jid) {
 module.exports = {
   extractText,
   messageType,
+  imageNode,
   quotedId,
   quotedText,
   numberFromJid,

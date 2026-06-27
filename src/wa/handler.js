@@ -6,6 +6,7 @@ const agent = require('../agent/agent');
 const {
   extractText,
   messageType,
+  imageNode,
   numberFromJid,
   numberInList,
   phoneJid,
@@ -58,7 +59,7 @@ const PENDING_MAX = 50_000;
  * Handle one incoming WhatsApp message: validate, store it, and (if the agent
  * should reply) schedule a single contextual response once the client pauses.
  */
-async function handleMessage({ userId, settings, msg, send, sendImage, notifyOwner, typing, note }) {
+async function handleMessage({ userId, settings, msg, send, sendImage, downloadMedia, notifyOwner, typing, note }) {
   const mark = (status) => {
     try {
       if (note) note(status);
@@ -76,8 +77,11 @@ async function handleMessage({ userId, settings, msg, send, sendImage, notifyOwn
   if (!msg.message) {
     return mark(`no_content:${msg.messageStubType ? `stub_${msg.messageStubType}` : 'decrypt_failed'}`);
   }
-  const text = extractText(msg.message);
-  if (!text) return mark(`no_text:${messageType(msg.message)}`);
+  // Images (e.g. payment screenshots) are handled too — the agent can "see" them.
+  const img = imageNode(msg.message);
+  const text = extractText(msg.message); // caption for images, body for text
+  if (!text && !img) return mark(`no_text:${messageType(msg.message)}`);
+  const effectiveText = text || '📷 [photo]';
 
   // Resolve the client's real mobile-number JID (handles WhatsApp "LID"
   // addressing) so replies and the allow/block list use the phone number, not
@@ -94,11 +98,11 @@ async function handleMessage({ userId, settings, msg, send, sendImage, notifyOwn
   // JID. We still SEND to the live remoteJid.
   const chatKey = isGroup(remoteJid) ? remoteJid : clientJid;
 
-  logger.info({ userId, from: number, text }, 'incoming');
+  logger.info({ userId, from: number, text: effectiveText, image: !!img }, 'incoming');
   // Store the incoming message immediately so it's part of the context the agent
   // reads — even if several arrive before we reply. Best-effort.
   try {
-    await mem.appendMessage(userId, chatKey, 'user', text, {
+    await mem.appendMessage(userId, chatKey, 'user', effectiveText, {
       waMsgId: msg.key.id,
       ts: msgTs,
       source: 'client',
@@ -128,7 +132,13 @@ async function handleMessage({ userId, settings, msg, send, sendImage, notifyOwn
   const lo = Math.max(0, Number(settings.reply.delayMinSeconds) || 0);
   const hi = Math.max(lo, Number(settings.reply.delayMaxSeconds) || 0);
   const waitMs = (lo === hi ? lo : lo + Math.random() * (hi - lo)) * 1000;
-  const ctx = { userId, settings, remoteJid, chatKey, number, clientJid, clientName, text, send, sendImage, notifyOwner, typing, note };
+  const ctx = {
+    userId, settings, remoteJid, chatKey, number, clientJid, clientName,
+    text: effectiveText,
+    caption: text,
+    imageMsg: img ? msg : null,
+    send, sendImage, downloadMedia, notifyOwner, typing, note,
+  };
   const timer = setTimeout(() => {
     pending.delete(key);
     respond(ctx).catch((err) => {
@@ -147,7 +157,7 @@ async function handleMessage({ userId, settings, msg, send, sendImage, notifyOwn
 // Produce and send one reply for a chat, using the full stored history as
 // context. Runs after the gather window, so the client's whole burst is already
 // persisted and visible to the agent.
-async function respond({ userId, settings, remoteJid, chatKey, number, clientJid, clientName, text, send, sendImage, notifyOwner, typing, note }) {
+async function respond({ userId, settings, remoteJid, chatKey, number, clientJid, clientName, text, caption, imageMsg, send, sendImage, downloadMedia, notifyOwner, typing, note }) {
   const showTyping = typing || (async () => {});
   const mark = (status) => {
     try {
@@ -222,9 +232,32 @@ async function respond({ userId, settings, remoteJid, chatKey, number, clientJid
     notifyOwner: notifyOwner ? (textToOwner) => notifyOwner(textToOwner, clientJid) : null,
     customerNumber: number,
   };
+  // If the client sent an image (e.g. a payment screenshot), download and
+  // "read" it, then feed what it shows into the agent's turn. Best-effort.
+  let decideText = text;
+  if (imageMsg && downloadMedia) {
+    let media = null;
+    try {
+      media = await downloadMedia(imageMsg);
+    } catch (err) {
+      logger.error({ err: err.message, userId }, 'image download failed');
+    }
+    let desc = null;
+    if (media) {
+      try {
+        desc = await agent.analyzeImage(settings, media);
+      } catch (_) {
+        /* vision is best-effort */
+      }
+    }
+    const cap = caption ? `${caption}\n\n` : '';
+    decideText = desc
+      ? `${cap}[The client sent an image. What it shows: ${desc}]`
+      : `${cap}[The client sent an image/screenshot you can't view. If they're claiming payment, ask for the amount and transaction id, or say you'll verify it.]`;
+  }
   let outcome;
   try {
-    outcome = await agent.decide(settings, history, text, examples, actions);
+    outcome = await agent.decide(settings, history, decideText, examples, actions);
   } catch (err) {
     logger.error({ err: err.message, userId }, 'agent error');
     outcome = { action: 'escalate', reason: 'agent error', text: '' };

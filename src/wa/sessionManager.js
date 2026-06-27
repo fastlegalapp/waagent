@@ -6,6 +6,7 @@ const {
   default: makeWASocket,
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
+  downloadMediaMessage,
   DisconnectReason,
 } = require('@whiskeysockets/baileys');
 const QRCode = require('qrcode');
@@ -264,6 +265,30 @@ async function connect(userId) {
       return sent;
     } catch (err) {
       logger.error({ err: err.message, userId, jid }, 'failed to send image');
+      return null;
+    }
+  };
+
+  // Download an incoming media message (e.g. a photo) as base64 + mime, so the
+  // agent can "see" it. Guarded so a missing/blocked download never throws.
+  const downloadMedia = async (m) => {
+    try {
+      if (typeof downloadMediaMessage !== 'function') return null;
+      const buf = await downloadMediaMessage(
+        m,
+        'buffer',
+        {},
+        { logger: baileysLogger, reuploadRequest: sock.updateMediaMessage },
+      );
+      if (!buf || !buf.length) return null;
+      const node =
+        m?.message?.imageMessage ||
+        m?.message?.ephemeralMessage?.message?.imageMessage ||
+        m?.message?.viewOnceMessageV2?.message?.imageMessage;
+      const mime = (node && node.mimetype) || 'image/jpeg';
+      return { base64: buf.toString('base64'), mime };
+    } catch (err) {
+      logger.error({ err: err.message, userId }, 'failed to download media');
       return null;
     }
   };
@@ -532,7 +557,7 @@ async function connect(userId) {
     };
     for (const msg of messages) {
       try {
-        await handleMessage({ userId, settings, msg, send, sendImage, notifyOwner, typing, note });
+        await handleMessage({ userId, settings, msg, send, sendImage, downloadMedia, notifyOwner, typing, note });
       } catch (err) {
         logger.error({ err: err.message, userId }, 'handler error');
         note('handler_error');
