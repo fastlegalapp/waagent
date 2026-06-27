@@ -61,16 +61,21 @@ $('logoutBtn').onclick = async () => {
 };
 
 // ── Sidebar nav ──────────────────────────────────────────────────────────────
+// Standalone panels live directly under .content; the rest live in #settingsForm.
+const STANDALONE_PANELS = ['connect', 'lists'];
 function showPanel(name) {
   document.querySelectorAll('.side-nav button').forEach((b) =>
     b.classList.toggle('active', b.dataset.nav === name),
   );
-  const onConnect = name === 'connect';
-  document.querySelector('[data-panel="connect"]').classList.toggle('hidden', !onConnect);
-  $('settingsForm').classList.toggle('hidden', onConnect);
+  const standalone = STANDALONE_PANELS.includes(name);
+  document.querySelectorAll('.content > section[data-panel]').forEach((p) =>
+    p.classList.toggle('hidden', p.dataset.panel !== name),
+  );
+  $('settingsForm').classList.toggle('hidden', standalone);
   document.querySelectorAll('#settingsForm [data-panel]').forEach((p) =>
     p.classList.toggle('hidden', p.dataset.panel !== name),
   );
+  if (name === 'lists') loadLists();
 }
 document.querySelectorAll('.side-nav button').forEach((b) => {
   b.onclick = () => { showPanel(b.dataset.nav); closeNav(); };
@@ -294,6 +299,153 @@ $('diagBtn').onclick = async () => {
   try { renderDiag(await api('/api/wa/diagnostics')); }
   catch (e) { $('diag').textContent = `Error: ${e.message}`; }
 };
+
+// ── Data Lists ───────────────────────────────────────────────────────────────
+let currentListId = null;
+const esc = (s) =>
+  String(s).replace(/[&<>"]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
+
+function parseCsv(text) {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map((h) => h.trim()).filter(Boolean);
+  return lines
+    .slice(1)
+    .map((line) => {
+      const vals = line.split(',').map((v) => v.trim());
+      const obj = {};
+      headers.forEach((h, i) => { if (vals[i] !== undefined && vals[i] !== '') obj[h] = vals[i]; });
+      return obj;
+    })
+    .filter((o) => Object.keys(o).length);
+}
+
+function renderItems(items) {
+  const cont = $('itemsTable');
+  $('itemCount').textContent = items.length ? `(${items.length})` : '';
+  if (!items.length) {
+    cont.innerHTML = '<p class="muted small">No rows yet — paste some below.</p>';
+    return;
+  }
+  const cols = [];
+  items.forEach((it) => Object.keys(it.fields).forEach((k) => { if (!cols.includes(k)) cols.push(k); }));
+  const head = '<tr>' + cols.map((c) => `<th>${esc(c)}</th>`).join('') + '<th></th></tr>';
+  const rows = items
+    .map(
+      (it) =>
+        '<tr>' +
+        cols.map((c) => `<td>${esc(it.fields[c] ?? '')}</td>`).join('') +
+        `<td><button class="faq-del" data-del="${it.id}">✕</button></td></tr>`,
+    )
+    .join('');
+  cont.innerHTML = `<table class="data-table">${head}${rows}</table>`;
+  cont.querySelectorAll('[data-del]').forEach((b) => { b.onclick = () => deleteItem(b.dataset.del); });
+}
+
+async function loadLists() {
+  let lists = [];
+  try { ({ lists } = await api('/api/lists')); } catch (_) { lists = []; }
+  const chips = $('listChips');
+  chips.innerHTML = '';
+  lists.forEach((l) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'list-chip' + (l.id === currentListId ? ' active' : '');
+    b.textContent = `${l.name} · ${l.itemCount ?? 0}`;
+    b.onclick = () => selectList(l.id);
+    chips.appendChild(b);
+  });
+  if (currentListId && !lists.find((l) => l.id === currentListId)) {
+    currentListId = null;
+    $('listEditor').classList.add('hidden');
+  }
+  return lists;
+}
+
+async function selectList(id) {
+  const lists = await loadLists();
+  const l = lists.find((x) => x.id === id);
+  if (!l) return;
+  currentListId = id;
+  $('listName').value = l.name;
+  $('listInstructions').value = l.instructions || '';
+  $('remEnabled').checked = l.reminderEnabled === true;
+  $('remDate').value = l.reminderDateField || '';
+  $('remPhone').value = l.reminderPhoneField || '';
+  $('remDays').value = l.reminderDaysBefore ?? 0;
+  $('remTemplate').value = l.reminderTemplate || '';
+  $('listEditor').classList.remove('hidden');
+  $('csvInput').value = '';
+  $('csvResult').textContent = '';
+  $('listSaved').textContent = '';
+  try { renderItems((await api(`/api/lists/${id}/items`)).items); } catch (_) {}
+  // re-highlight the active chip
+  document.querySelectorAll('#listChips .list-chip').forEach((c) =>
+    c.classList.toggle('active', c.textContent.startsWith(`${l.name} ·`)),
+  );
+}
+
+async function loadItems() {
+  if (!currentListId) return;
+  try { renderItems((await api(`/api/lists/${currentListId}/items`)).items); } catch (_) {}
+}
+
+$('newListBtn').onclick = async () => {
+  const name = prompt('List name (e.g. Products, EMI Customers, Leads)');
+  if (!name || !name.trim()) return;
+  const { list } = await api('/api/lists', { method: 'POST', body: JSON.stringify({ name: name.trim() }) });
+  await selectList(list.id);
+};
+$('saveListBtn').onclick = async () => {
+  if (!currentListId) return;
+  const payload = {
+    name: $('listName').value.trim(),
+    instructions: $('listInstructions').value,
+    reminderEnabled: $('remEnabled').checked,
+    reminderDateField: $('remDate').value.trim(),
+    reminderPhoneField: $('remPhone').value.trim(),
+    reminderDaysBefore: parseInt($('remDays').value, 10) || 0,
+    reminderTemplate: $('remTemplate').value,
+  };
+  try {
+    await api(`/api/lists/${currentListId}`, { method: 'PUT', body: JSON.stringify(payload) });
+    $('listSaved').textContent = 'Saved.';
+    setTimeout(() => ($('listSaved').textContent = ''), 2000);
+    loadLists();
+  } catch (e) {
+    $('listSaved').textContent = e.message;
+  }
+};
+$('deleteListBtn').onclick = async () => {
+  if (!currentListId || !confirm('Delete this list and all its rows?')) return;
+  await api(`/api/lists/${currentListId}`, { method: 'DELETE' });
+  currentListId = null;
+  $('listEditor').classList.add('hidden');
+  loadLists();
+};
+$('addRowsBtn').onclick = async () => {
+  if (!currentListId) return;
+  const items = parseCsv($('csvInput').value);
+  if (!items.length) { $('csvResult').textContent = 'Nothing to add — check the format (first line = column names).'; return; }
+  try {
+    const { added } = await api(`/api/lists/${currentListId}/items`, {
+      method: 'POST',
+      body: JSON.stringify({ items, replace: $('csvReplace').checked }),
+    });
+    $('csvResult').textContent = `Added ${added} row(s).`;
+    $('csvInput').value = '';
+    $('csvReplace').checked = false;
+    await loadItems();
+    loadLists();
+  } catch (e) {
+    $('csvResult').textContent = e.message;
+  }
+};
+async function deleteItem(itemId) {
+  await api(`/api/lists/${currentListId}/items/${itemId}`, { method: 'DELETE' });
+  await loadItems();
+  loadLists();
+}
 
 // ── WhatsApp linking ─────────────────────────────────────────────────────────
 let pollTimer = null;

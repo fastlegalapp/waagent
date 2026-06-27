@@ -9,10 +9,12 @@ const mem = require('./db/messages');
 const manager = require('./wa/sessionManager');
 const styleLearner = require('./services/styleLearner');
 const followups = require('./services/followups');
+const listReminders = require('./services/listReminders');
 const ready = require('./ready');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FOLLOWUP_INTERVAL_MS = 30 * 60 * 1000; // check every 30 min
+const REMINDER_INTERVAL_MS = 60 * 60 * 1000; // check list reminders hourly
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -68,6 +70,13 @@ async function migrateThenResume() {
       logger.warn({ err: err.message }, 'follow-up run failed'),
     );
   }, FOLLOWUP_INTERVAL_MS).unref?.();
+
+  // Send due-date reminders from users' data lists (EMI, GST, TDS, overdue…).
+  setInterval(() => {
+    listReminders.runForAll().catch((err) =>
+      logger.warn({ err: err.message }, 'list-reminder run failed'),
+    );
+  }, REMINDER_INTERVAL_MS).unref?.();
 }
 
 async function main() {

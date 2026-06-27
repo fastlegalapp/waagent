@@ -33,6 +33,16 @@ async function migrate() {
     logger.warn({ err: err.message }, 'could not create messages_content_fts_idx index');
   }
 
+  // Full-text index over list item fields, for the agent's lookup_list tool.
+  try {
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS data_items_fts_idx
+         ON data_items USING gin (to_tsvector('simple', fields::text))`,
+    );
+  } catch (err) {
+    logger.warn({ err: err.message }, 'could not create data_items_fts_idx index');
+  }
+
   logger.info('Database schema is up to date.');
 }
 

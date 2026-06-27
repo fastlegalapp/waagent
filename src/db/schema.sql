@@ -57,6 +57,34 @@ CREATE INDEX IF NOT EXISTS messages_user_chat_idx
 -- (The unique (user_id, wa_msg_id) index for history dedupe is created
 --  separately and tolerantly in migrate.js.)
 
+-- User-defined data lists (products, services, customers, leads, EMI schedules,
+-- anything) the agent can look things up in and send reminders from.
+CREATE TABLE IF NOT EXISTS data_lists (
+  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id              UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name                 TEXT NOT NULL,
+  instructions         TEXT NOT NULL DEFAULT '',  -- how the agent should use this list
+  reminder_enabled     BOOLEAN NOT NULL DEFAULT false,
+  reminder_date_field  TEXT NOT NULL DEFAULT '',  -- which field holds the due date
+  reminder_phone_field TEXT NOT NULL DEFAULT '',  -- which field holds the phone number
+  reminder_template    TEXT NOT NULL DEFAULT '',  -- message; supports {field} placeholders
+  reminder_days_before INTEGER NOT NULL DEFAULT 0, -- send this many days before the due date
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Rows within a list. Free-form fields so any industry/shape fits.
+CREATE TABLE IF NOT EXISTS data_items (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  list_id          UUID NOT NULL REFERENCES data_lists(id) ON DELETE CASCADE,
+  user_id          UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  fields           JSONB NOT NULL DEFAULT '{}'::jsonb,
+  last_reminded_at TIMESTAMPTZ,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS data_items_list_idx ON data_items (list_id);
+CREATE INDEX IF NOT EXISTS data_items_user_idx ON data_items (user_id);
+
 -- Last-reply timestamps for per-chat rate limiting.
 CREATE TABLE IF NOT EXISTS chat_state (
   user_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,

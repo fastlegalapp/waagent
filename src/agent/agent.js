@@ -4,6 +4,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const OpenAI = require('openai');
 const logger = require('../logger');
 const drive = require('./tools/drive');
+const lists = require('../db/lists');
 
 const DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
 
@@ -73,6 +74,22 @@ function buildExamplesBlock(examples) {
   );
 }
 
+// Directory of the owner's custom data lists, so the agent knows what it can
+// look up (and the per-list instructions on how to use each).
+function buildListsBlock(owner) {
+  const ls = Array.isArray(owner.lists) ? owner.lists : [];
+  if (ls.length === 0) return '';
+  const lines = ls
+    .map((l) => `• ${l.name} (${l.count} entries)${l.instructions ? ` — ${l.instructions}` : ''}`)
+    .join('\n');
+  return (
+    'You have these data lists. Use the lookup_list tool to find specific entries ' +
+    '(a product, price, customer, order, due date, etc.) before answering — never ' +
+    "invent items that aren't in a list. Follow each list's instructions:\n" +
+    lines
+  );
+}
+
 function buildSystemPrompt(owner, examples) {
   const name = owner.name || 'the owner';
   const style = STYLES[owner.style] || STYLES.friendly;
@@ -81,6 +98,8 @@ function buildSystemPrompt(owner, examples) {
     owner.description ? `What you do: ${owner.description}` : '',
     '',
     buildFaqBlock(owner),
+    '',
+    buildListsBlock(owner),
     '',
     buildExamplesBlock(examples),
     '',
@@ -152,6 +171,25 @@ const tools = [
     },
   },
   {
+    name: 'lookup_list',
+    description:
+      "Search the owner's data lists (products, services, customers, leads, " +
+      'orders, schedules, prices, due dates, etc.) for entries matching a query. ' +
+      'Use this to get REAL details before answering — a product price/availability, ' +
+      "a customer's due date, etc. Returns matching rows.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'What to look up — a product name, customer name/number, or keyword.',
+        },
+      },
+      required: ['query'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'do_not_reply',
     description:
       'Send nothing. Use for spam, wrong numbers, hostile messages, or anything ' +
@@ -184,6 +222,14 @@ function safeParse(json) {
 async function runTool(name, input, settings) {
   if (name === 'find_document') {
     return JSON.stringify(await drive.findDocument(settings, input.query));
+  }
+  if (name === 'lookup_list') {
+    try {
+      const results = await lists.searchItems(settings.userId, input.query, 8);
+      return JSON.stringify({ results });
+    } catch (err) {
+      return JSON.stringify({ results: [], error: 'lookup failed' });
+    }
   }
   return JSON.stringify({ ok: true });
 }

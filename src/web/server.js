@@ -9,6 +9,7 @@ const logger = require('../logger');
 
 const authRoutes = require('./routes/auth');
 const settingsRoutes = require('./routes/settings');
+const listsRoutes = require('./routes/lists');
 const waRoutes = require('./routes/wa');
 const ready = require('../ready');
 
@@ -24,6 +25,7 @@ function createApp() {
   // API
   app.use('/api/auth', authRoutes);
   app.use('/api/settings', settingsRoutes);
+  app.use('/api/lists', listsRoutes);
   app.use('/api/wa', waRoutes);
 
   // Always 200 once the process is up, so the panel's proxy has a live upstream

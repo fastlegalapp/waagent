@@ -1,6 +1,7 @@
 'use strict';
 
 const settingsDb = require('../db/settings');
+const listsDb = require('../db/lists');
 const { decrypt } = require('../auth/crypto');
 
 function parseList(value) {
@@ -31,6 +32,14 @@ function parseFaqs(value) {
 async function resolve(userId) {
   const row = await settingsDb.getRaw(userId);
   if (!row) return null;
+  // Directory of the user's custom lists, so the agent knows what it can look
+  // up. Best-effort — never block message handling on it.
+  let listDir = [];
+  try {
+    listDir = await listsDb.getDirectory(userId);
+  } catch (_) {
+    /* lists are optional */
+  }
   const provider = (row.provider || 'anthropic').toLowerCase();
   // The active AI backend for this user (provider + decrypted key + model).
   const ai =
@@ -54,6 +63,7 @@ async function resolve(userId) {
       style: row.persona_style || 'friendly',
       custom: row.persona_custom || '',
       faqs: parseFaqs(row.faqs),
+      lists: listDir,
       learnedStyle: row.learned_style || '',
     },
     ai,

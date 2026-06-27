@@ -127,6 +127,7 @@
             <button data-nav="connect" class="active">📱 Connect</button>
             <button data-nav="persona">🗣️ Persona &amp; Instructions</button>
             <button data-nav="faqs">📋 Quick Answers</button>
+            <button data-nav="lists">📦 Lists</button>
             <button data-nav="ai">🔑 AI Provider</button>
             <button data-nav="replies">⚙️ Replies &amp; Follow-ups</button>
           </nav>
@@ -159,6 +160,62 @@
               (the “message yourself” chat) with the client’s name &amp; number.
               Just <strong>reply to that message</strong> — or send
               “<em>number: your reply</em>” — and we’ll forward it to that client for you.</p>
+          </section>
+
+          <!-- LISTS (not part of the settings form) -->
+          <section class="panel hidden" data-panel="lists">
+            <h2>Data Lists</h2>
+            <p class="muted">Create lists of anything — products, services, customers, leads,
+              EMI/loan schedules. Tell the agent how to use each list and it answers clients
+              from it; lists with a due date can send automatic reminders.</p>
+            <div class="lists-bar">
+              <div id="listChips" class="list-chips"></div>
+              <button type="button" id="newListBtn" class="ghost">+ New list</button>
+            </div>
+
+            <div id="listEditor" class="list-editor hidden">
+              <div class="list-editor-head">
+                <input type="text" id="listName" class="list-name" />
+                <button type="button" id="deleteListBtn" class="danger">Delete</button>
+              </div>
+              <label>Instructions for the agent — how to use this list
+                <textarea id="listInstructions" rows="3"
+                  placeholder="e.g. These are our products &amp; prices. Quote from here, take orders, and if a customer asks for a photo, share the image link."></textarea>
+              </label>
+
+              <fieldset>
+                <legend>Due-date reminders (optional)</legend>
+                <label class="check"><input type="checkbox" id="remEnabled" /> Send reminders for a due date in this list</label>
+                <div class="grid2">
+                  <label>Date column name<input type="text" id="remDate" placeholder="due_date" /></label>
+                  <label>Phone column name<input type="text" id="remPhone" placeholder="phone" /></label>
+                </div>
+                <label>Send this many days before the due date
+                  <input type="number" id="remDays" min="0" max="365" />
+                </label>
+                <label>Message template — use {column} to insert a value
+                  <textarea id="remTemplate" rows="2"
+                    placeholder="Hi {name}, your EMI of Rs {amount} is due on {due_date}. Please pay on time."></textarea>
+                </label>
+                <p class="hint">Overdue rows are reminded too. Add a column with the number to message and the due date.</p>
+              </fieldset>
+
+              <div class="savebar"><span class="ok" id="listSaved"></span>
+                <button type="button" id="saveListBtn" class="primary">Save list</button>
+              </div>
+
+              <h3 class="list-items-h">Rows <span id="itemCount" class="muted small"></span></h3>
+              <div id="itemsTable" class="items-table"></div>
+              <label>Add rows — paste as CSV (first line = column names)
+                <textarea id="csvInput" rows="4"
+                  placeholder="name, price, image&#10;Almond Cake, 650, https://...&#10;Chocolate Truffle, 800,"></textarea>
+              </label>
+              <div class="row">
+                <label class="check"><input type="checkbox" id="csvReplace" /> Replace all existing rows</label>
+                <button type="button" id="addRowsBtn" class="primary">Add rows</button>
+                <span id="csvResult" class="muted"></span>
+              </div>
+            </div>
           </section>
 
           <!-- SETTINGS FORM (persona / ai / replies) -->
