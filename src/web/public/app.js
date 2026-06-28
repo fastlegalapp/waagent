@@ -454,16 +454,146 @@ async function loadItems() {
   try { renderItems((await api(`/api/lists/${currentListId}/items`)).items); } catch (_) {}
 }
 
-// Ready-made list templates: a name, the columns to pre-fill the add-row form,
-// instructions for the agent, and (optionally) reminder defaults. Picking one
-// creates the list pre-configured so the user only has to add rows.
-const LIST_TEMPLATES = [
+// Ready-made list templates. Each has a name, columns to pre-fill the add-row
+// form, agent instructions, optional reminder defaults, and — for the
+// business-type presets — a few sample `rows` that are inserted automatically
+// so the user starts with a working catalogue they can edit or replace.
+const PRODUCT_INSTRUCTIONS =
+  'This is our product catalogue with prices. Quote from here, answer questions, take orders, '
+  + 'and if a customer asks for a photo share the value in the "image" column.';
+
+const BUSINESS_TEMPLATES = [
   {
-    key: 'products', label: '🛍️ Products', name: 'Products',
-    columns: ['name', 'price', 'description', 'image'],
+    key: 'grocery', label: '🛒 Grocery store', name: 'Grocery Products',
+    columns: ['name', 'unit', 'price', 'image'],
+    instructions: PRODUCT_INSTRUCTIONS,
+    rows: [
+      { name: 'Aashirvaad Atta', unit: '5 kg', price: '265' },
+      { name: 'Toor Dal', unit: '1 kg', price: '160' },
+      { name: 'Basmati Rice', unit: '5 kg', price: '480' },
+      { name: 'Fortune Sunflower Oil', unit: '1 L', price: '140' },
+      { name: 'Sugar', unit: '1 kg', price: '45' },
+      { name: 'Tata Salt', unit: '1 kg', price: '28' },
+      { name: 'Amul Milk', unit: '500 ml', price: '34' },
+      { name: 'Red Label Tea', unit: '250 g', price: '140' },
+      { name: 'Maggi Noodles', unit: '4 pack', price: '60' },
+      { name: 'Britannia Bread', unit: '400 g', price: '45' },
+    ],
+  },
+  {
+    key: 'vegfruit', label: '🥦 Vegetable & fruit', name: 'Vegetables & Fruits',
+    columns: ['name', 'unit', 'price'],
+    instructions: PRODUCT_INSTRUCTIONS + ' Prices may change daily — update them each morning.',
+    rows: [
+      { name: 'Tomato', unit: '1 kg', price: '40' },
+      { name: 'Onion', unit: '1 kg', price: '35' },
+      { name: 'Potato', unit: '1 kg', price: '30' },
+      { name: 'Banana', unit: '1 dozen', price: '50' },
+      { name: 'Apple', unit: '1 kg', price: '160' },
+      { name: 'Lady Finger', unit: '500 g', price: '25' },
+      { name: 'Spinach', unit: '1 bunch', price: '20' },
+    ],
+  },
+  {
+    key: 'restaurant', label: '🍽️ Restaurant / café', name: 'Menu',
+    columns: ['item', 'category', 'price', 'description'],
     instructions:
-      'These are our products and prices. Quote from here, answer questions, take orders, '
-      + 'and if a customer asks for a photo share the value in the "image" column.',
+      'This is our food menu. Answer questions about dishes, suggest items, and take orders. '
+      + 'Mention if something is spicy or a bestseller when relevant.',
+    rows: [
+      { item: 'Masala Dosa', category: 'South Indian', price: '90', description: 'Crispy dosa with potato filling' },
+      { item: 'Paneer Butter Masala', category: 'Main Course', price: '220', description: 'Creamy tomato gravy' },
+      { item: 'Veg Biryani', category: 'Rice', price: '180', description: 'Served with raita' },
+      { item: 'Butter Naan', category: 'Breads', price: '40', description: '' },
+      { item: 'Masala Chai', category: 'Beverages', price: '20', description: '' },
+      { item: 'Gulab Jamun', category: 'Dessert', price: '60', description: '2 pieces' },
+    ],
+  },
+  {
+    key: 'bakery', label: '🧁 Bakery', name: 'Bakery Products',
+    columns: ['name', 'price', 'description', 'image'],
+    instructions: PRODUCT_INSTRUCTIONS + ' Cakes may need a day\'s notice — mention that for custom orders.',
+    rows: [
+      { name: 'Chocolate Truffle Cake', price: '650', description: '500 g' },
+      { name: 'Black Forest Cake', price: '600', description: '500 g' },
+      { name: 'Vanilla Pastry', price: '50', description: 'per piece' },
+      { name: 'Veg Puff', price: '30', description: '' },
+      { name: 'Brown Bread', price: '45', description: '' },
+      { name: 'Cookies (Assorted)', price: '250', description: '500 g box' },
+    ],
+  },
+  {
+    key: 'pharmacy', label: '💊 Pharmacy', name: 'Pharmacy Stock',
+    columns: ['name', 'pack', 'price'],
+    instructions:
+      'Our medicine and healthcare stock. Help with availability and prices. '
+      + 'Never give medical advice or dosage — for prescriptions, ask the customer to share the doctor\'s prescription.',
+    rows: [
+      { name: 'Paracetamol 500mg', pack: '10 tablets', price: '25' },
+      { name: 'Dolo 650', pack: '15 tablets', price: '32' },
+      { name: 'Digene Gel', pack: '200 ml', price: '120' },
+      { name: 'Dettol Antiseptic', pack: '100 ml', price: '60' },
+      { name: 'Hand Sanitizer', pack: '200 ml', price: '90' },
+      { name: 'Surgical Mask', pack: '50 pcs', price: '150' },
+    ],
+  },
+  {
+    key: 'salon', label: '💇 Salon & spa', name: 'Salon Services',
+    columns: ['service', 'price', 'duration'],
+    instructions:
+      'These are our salon/spa services and prices. Explain what each includes, quote prices, and help the customer book a slot.',
+    rows: [
+      { service: 'Haircut (Men)', price: '150', duration: '30 min' },
+      { service: 'Haircut (Women)', price: '350', duration: '45 min' },
+      { service: 'Hair Spa', price: '800', duration: '60 min' },
+      { service: 'Facial', price: '700', duration: '45 min' },
+      { service: 'Threading', price: '50', duration: '10 min' },
+      { service: 'Manicure', price: '400', duration: '40 min' },
+    ],
+  },
+  {
+    key: 'boutique', label: '👗 Clothing / boutique', name: 'Clothing Catalogue',
+    columns: ['name', 'size', 'price', 'image'],
+    instructions: PRODUCT_INSTRUCTIONS + ' Ask the customer for size and colour preference before confirming an order.',
+    rows: [
+      { name: 'Cotton Kurti', size: 'M / L / XL', price: '699' },
+      { name: 'Anarkali Suit', size: 'Free Size', price: '1499' },
+      { name: 'Denim Jeans', size: '28-36', price: '999' },
+      { name: 'Silk Saree', size: 'Free Size', price: '2499' },
+      { name: 'Men\'s Formal Shirt', size: 'M / L / XL', price: '799' },
+    ],
+  },
+  {
+    key: 'mobile', label: '📱 Mobile / electronics', name: 'Electronics Catalogue',
+    columns: ['name', 'price', 'warranty', 'image'],
+    instructions: PRODUCT_INSTRUCTIONS + ' Mention warranty and available colours/variants when asked.',
+    rows: [
+      { name: 'Smartphone Charger (Type-C)', price: '299', warranty: '6 months' },
+      { name: 'Bluetooth Earbuds', price: '1299', warranty: '1 year' },
+      { name: 'Power Bank 10000mAh', price: '999', warranty: '1 year' },
+      { name: 'Tempered Glass', price: '149', warranty: '' },
+      { name: 'Phone Back Cover', price: '199', warranty: '' },
+    ],
+  },
+  {
+    key: 'hardware', label: '🔧 Hardware store', name: 'Hardware Stock',
+    columns: ['name', 'unit', 'price'],
+    instructions: PRODUCT_INSTRUCTIONS,
+    rows: [
+      { name: 'PVC Pipe 1 inch', unit: 'per ft', price: '35' },
+      { name: 'Wall Paint (White)', unit: '1 L', price: '320' },
+      { name: 'Cement Bag', unit: '50 kg', price: '400' },
+      { name: 'Screws (Box)', unit: '100 pcs', price: '120' },
+      { name: 'Door Hinge', unit: 'pair', price: '90' },
+    ],
+  },
+];
+
+const GENERIC_TEMPLATES = [
+  {
+    key: 'products', label: '🛍️ Products (blank)', name: 'Products',
+    columns: ['name', 'price', 'description', 'image'],
+    instructions: PRODUCT_INSTRUCTIONS,
   },
   {
     key: 'services', label: '🧰 Services', name: 'Services',
@@ -535,27 +665,39 @@ async function createFromTemplate(t) {
     patch.reminderTemplate = t.reminder.template;
   }
   try { await api(`/api/lists/${list.id}`, { method: 'PUT', body: JSON.stringify(patch) }); } catch (_) {}
+  // Insert the sample rows (if any) so the list arrives pre-populated.
+  if (Array.isArray(t.rows) && t.rows.length) {
+    try { await api(`/api/lists/${list.id}/items`, { method: 'POST', body: JSON.stringify({ items: t.rows }) }); } catch (_) {}
+  }
   await selectList(list.id);
-  // The list has no rows yet, so seed the add-row form with the template's columns.
-  if (Array.isArray(t.columns) && t.columns.length) {
+  // If there were no sample rows, still seed the add-row form with the columns.
+  if ((!t.rows || !t.rows.length) && Array.isArray(t.columns) && t.columns.length) {
     currentColumns = t.columns.slice();
     renderRowForm();
   }
+}
+
+function templateChip(t) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'template-chip';
+  b.textContent = t.label;
+  const sample = t.rows && t.rows.length ? ` — includes ${t.rows.length} sample rows you can edit` : '';
+  b.title = (t.instructions || t.name) + sample;
+  b.onclick = () => createFromTemplate(t);
+  return b;
 }
 
 function renderTemplateChips() {
   const cont = $('templateChips');
   if (!cont) return;
   cont.innerHTML = '';
-  LIST_TEMPLATES.forEach((t) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'template-chip';
-    b.textContent = t.label;
-    b.title = t.instructions || t.name;
-    b.onclick = () => createFromTemplate(t);
-    cont.appendChild(b);
-  });
+  BUSINESS_TEMPLATES.forEach((t) => cont.appendChild(templateChip(t)));
+  const sep = document.createElement('span');
+  sep.className = 'template-sep';
+  sep.textContent = 'or';
+  cont.appendChild(sep);
+  GENERIC_TEMPLATES.forEach((t) => cont.appendChild(templateChip(t)));
 }
 renderTemplateChips();
 
