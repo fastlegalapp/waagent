@@ -16,17 +16,36 @@
   --wa: #25d366;          /* whatsapp */
   --danger: #e23b3b;
   --ok: #15a05a;
-  --radius: 14px;
-  --shadow: 0 1px 2px rgba(20, 22, 26, 0.04), 0 10px 30px rgba(20, 22, 26, 0.07);
+  --radius: 12px;
+  --shadow: 0 1px 2px rgba(20, 22, 26, 0.03), 0 6px 22px rgba(20, 22, 26, 0.055);
+  /* Body/UI: a crafted geometric sans (not the default Inter/Roboto look).
+     Headings: a characterful serif for an editorial, professional feel. */
+  --font: "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font);
   background: var(--bg);
   color: var(--text);
-  line-height: 1.5;
+  line-height: 1.55;
+  font-size: 15px;
+  letter-spacing: -0.006em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Editorial serif headings — the biggest single move away from a generic,
+   AI-generated look. */
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  color: var(--text);
 }
 .hidden { display: none !important; }
 .muted { color: var(--muted); }
@@ -37,8 +56,9 @@ body {
 .accent { color: var(--gold); }
 
 button {
-  cursor: pointer; border: none; border-radius: 12px;
-  padding: 11px 18px; font-size: 14px; font-weight: 700;
+  cursor: pointer; border: none; border-radius: 10px;
+  padding: 11px 18px; font-size: 14px; font-weight: 600;
+  font-family: var(--font); letter-spacing: -0.006em;
   transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.05s;
 }
 button:active { transform: translateY(1px); }
@@ -54,7 +74,8 @@ button.big { padding: 15px 28px; font-size: 16px; }
 
 /* Brand wordmark — black "FastLegal" with a yellow underline under "Fast". */
 .brand {
-  font-weight: 800; letter-spacing: -0.5px; font-size: 21px; color: var(--text);
+  font-family: var(--font); /* wordmark stays sans even though it sits near headings */
+  font-weight: 800; letter-spacing: -0.02em; font-size: 21px; color: var(--text);
   display: inline-block;
 }
 .brand .fl-mark { position: relative; }
@@ -87,7 +108,7 @@ button.big { padding: 15px 28px; font-size: 16px; }
   content: ""; width: 8px; height: 8px; border-radius: 50%;
   background: var(--green); box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
 }
-.hero h1 { font-size: 52px; line-height: 1.08; margin: 0 0 18px; font-weight: 800; letter-spacing: -1.2px; }
+.hero h1 { font-size: 50px; line-height: 1.06; margin: 0 0 18px; font-weight: 600; letter-spacing: -0.025em; }
 .lead { font-size: 19px; color: var(--muted); max-width: 640px; margin: 0 auto 28px; }
 .hero-cta { display: flex; gap: 14px; justify-content: center; margin-bottom: 16px; flex-wrap: wrap; }
 .hero .trust { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 14px; }
@@ -192,7 +213,8 @@ body.nav-open .nav-toggle .bars::after { transform: translateY(-6px) rotate(-45d
 label { display: block; margin: 12px 0 4px; font-size: 14px; font-weight: 500; }
 input, select, textarea {
   width: 100%; padding: 10px 12px; background: #fff;
-  border: 1px solid var(--line); border-radius: 10px; color: var(--text); font-size: 14px;
+  border: 1px solid var(--line); border-radius: 9px; color: var(--text); font-size: 14px;
+  font-family: var(--font); letter-spacing: -0.006em;
 }
 input:focus, select:focus, textarea:focus {
   outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--gold-soft);
@@ -249,7 +271,7 @@ legend { color: var(--muted); font-size: 13px; padding: 0 6px; font-weight: 600;
 .list-editor-head .danger { width: auto; flex-shrink: 0; }
 .list-items-h { margin: 18px 0 8px; font-size: 16px; }
 .items-table { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
-.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 .data-table th, .data-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .data-table th { background: var(--bg2); font-weight: 700; color: var(--muted); }
 .data-table tr:last-child td { border-bottom: none; }
