@@ -277,6 +277,25 @@ legend { color: var(--muted); font-size: 13px; padding: 0 6px; font-weight: 600;
 .data-table tr:last-child td { border-bottom: none; }
 .data-table .faq-del { padding: 4px 9px; }
 
+/* Add-a-row form (one field per column) */
+.add-row-card { margin-top: 14px; padding: 14px; background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; }
+.add-row-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.add-row-head strong { font-size: 14px; }
+.add-row-head .ghost { width: auto; flex-shrink: 0; padding: 6px 12px; }
+.row-fields { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.row-field { display: grid; grid-template-columns: 160px 1fr auto; gap: 8px; align-items: center; }
+.row-field .row-field-name { font-size: 13px; font-weight: 600; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-field input { margin: 0; }
+.row-field .faq-del { padding: 8px 11px; }
+.add-row-card .row { margin-top: 12px; }
+.add-row-card .primary { width: auto; }
+@media (max-width: 560px) { .row-field { grid-template-columns: 110px 1fr auto; } }
+
+.csv-paste { margin-top: 12px; }
+.csv-paste summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); user-select: none; }
+.csv-paste summary:hover { color: var(--text); }
+.csv-paste[open] summary { margin-bottom: 6px; }
+
 .row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
 .savebar { display: flex; align-items: center; gap: 14px; margin-top: 4px; }
 .savebar button { margin-left: auto; }

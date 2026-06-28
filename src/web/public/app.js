@@ -303,6 +303,7 @@ $('diagBtn').onclick = async () => {
 
 // ── Data Lists ───────────────────────────────────────────────────────────────
 let currentListId = null;
+let currentColumns = []; // known column names for the selected list (drives the add-row form)
 const esc = (s) =>
   String(s).replace(/[&<>"]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
 
@@ -324,12 +325,15 @@ function parseCsv(text) {
 function renderItems(items) {
   const cont = $('itemsTable');
   $('itemCount').textContent = items.length ? `(${items.length})` : '';
-  if (!items.length) {
-    cont.innerHTML = '<p class="muted small">No rows yet — paste some below.</p>';
-    return;
-  }
   const cols = [];
   items.forEach((it) => Object.keys(it.fields).forEach((k) => { if (!cols.includes(k)) cols.push(k); }));
+  // Remember the columns so the add-row form can show one field per column.
+  currentColumns = cols;
+  renderRowForm();
+  if (!items.length) {
+    cont.innerHTML = '<p class="muted small">No rows yet — add one below, or paste a CSV.</p>';
+    return;
+  }
   const head = '<tr>' + cols.map((c) => `<th>${esc(c)}</th>`).join('') + '<th></th></tr>';
   const rows = items
     .map(
@@ -341,6 +345,62 @@ function renderItems(items) {
     .join('');
   cont.innerHTML = `<table class="data-table">${head}${rows}</table>`;
   cont.querySelectorAll('[data-del]').forEach((b) => { b.onclick = () => deleteItem(b.dataset.del); });
+}
+
+// Build a "name: [value]" field row for the add-row form. `name` is the column;
+// when it's a known column the name is shown as a fixed label, otherwise it's an
+// editable input so the user can introduce a brand-new column on the fly.
+function addRowField(name = '', { known = false } = {}) {
+  const wrap = document.createElement('div');
+  wrap.className = 'row-field';
+  if (known) {
+    const lbl = document.createElement('span');
+    lbl.className = 'row-field-name';
+    lbl.textContent = name;
+    lbl.title = name;
+    wrap.dataset.name = name;
+    wrap.appendChild(lbl);
+  } else {
+    const nameIn = document.createElement('input');
+    nameIn.type = 'text'; nameIn.className = 'row-field-key';
+    nameIn.placeholder = 'column'; nameIn.value = name;
+    wrap.appendChild(nameIn);
+  }
+  const valIn = document.createElement('input');
+  valIn.type = 'text'; valIn.className = 'row-field-val'; valIn.placeholder = 'value';
+  wrap.appendChild(valIn);
+  if (!known) {
+    const del = document.createElement('button');
+    del.type = 'button'; del.className = 'faq-del'; del.title = 'Remove column'; del.textContent = '✕';
+    del.onclick = () => wrap.remove();
+    wrap.appendChild(del);
+  }
+  $('rowFields').appendChild(wrap);
+  return wrap;
+}
+
+// Render one field per known column. For a brand-new list with no columns yet,
+// seed a couple of blank editable fields so the user can define columns inline.
+function renderRowForm() {
+  const cont = $('rowFields');
+  if (!cont) return;
+  cont.innerHTML = '';
+  if (currentColumns.length) {
+    currentColumns.forEach((c) => addRowField(c, { known: true }));
+  } else {
+    addRowField('', { known: false });
+    addRowField('', { known: false });
+  }
+}
+
+function collectRow() {
+  const obj = {};
+  document.querySelectorAll('#rowFields .row-field').forEach((w) => {
+    const name = (w.dataset.name ?? w.querySelector('.row-field-key')?.value ?? '').trim();
+    const val = (w.querySelector('.row-field-val')?.value ?? '').trim();
+    if (name && val) obj[name] = val;
+  });
+  return obj;
 }
 
 async function loadLists() {
@@ -378,7 +438,10 @@ async function selectList(id) {
   $('listEditor').classList.remove('hidden');
   $('csvInput').value = '';
   $('csvResult').textContent = '';
+  $('rowResult').textContent = '';
   $('listSaved').textContent = '';
+  currentColumns = [];
+  renderRowForm();
   try { renderItems((await api(`/api/lists/${id}/items`)).items); } catch (_) {}
   // re-highlight the active chip
   document.querySelectorAll('#listChips .list-chip').forEach((c) =>
@@ -423,6 +486,24 @@ $('deleteListBtn').onclick = async () => {
   currentListId = null;
   $('listEditor').classList.add('hidden');
   loadLists();
+};
+$('addFieldBtn').onclick = () => { addRowField('', { known: false }).querySelector('.row-field-key').focus(); };
+$('addRowBtn').onclick = async () => {
+  if (!currentListId) return;
+  const row = collectRow();
+  if (!Object.keys(row).length) { $('rowResult').textContent = 'Fill in at least one column and value.'; return; }
+  try {
+    await api(`/api/lists/${currentListId}/items`, {
+      method: 'POST',
+      body: JSON.stringify({ items: [row] }),
+    });
+    $('rowResult').textContent = 'Added.';
+    setTimeout(() => ($('rowResult').textContent = ''), 1800);
+    await loadItems(); // re-renders the form with any new columns
+    loadLists();
+  } catch (e) {
+    $('rowResult').textContent = e.message;
+  }
 };
 $('addRowsBtn').onclick = async () => {
   if (!currentListId) return;

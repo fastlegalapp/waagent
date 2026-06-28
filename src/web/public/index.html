@@ -210,15 +210,33 @@
 
               <h3 class="list-items-h">Rows <span id="itemCount" class="muted small"></span></h3>
               <div id="itemsTable" class="items-table"></div>
-              <label>Add rows — paste as CSV (first line = column names)
-                <textarea id="csvInput" rows="4"
-                  placeholder="name, price, image&#10;Almond Cake, 650, https://...&#10;Chocolate Truffle, 800,"></textarea>
-              </label>
-              <div class="row">
-                <label class="check"><input type="checkbox" id="csvReplace" /> Replace all existing rows</label>
-                <button type="button" id="addRowsBtn" class="primary">Add rows</button>
-                <span id="csvResult" class="muted"></span>
+
+              <!-- Add a single row via fields (default) -->
+              <div class="add-row-card">
+                <div class="add-row-head">
+                  <strong>Add a row</strong>
+                  <button type="button" id="addFieldBtn" class="ghost small">+ Add column</button>
+                </div>
+                <div id="rowFields" class="row-fields"></div>
+                <div class="row">
+                  <button type="button" id="addRowBtn" class="primary">Add row</button>
+                  <span id="rowResult" class="muted"></span>
+                </div>
               </div>
+
+              <!-- Bulk paste as CSV (optional) -->
+              <details class="csv-paste">
+                <summary>Or paste many rows at once (CSV)</summary>
+                <label>First line = column names
+                  <textarea id="csvInput" rows="4"
+                    placeholder="name, price, image&#10;Almond Cake, 650, https://...&#10;Chocolate Truffle, 800,"></textarea>
+                </label>
+                <div class="row">
+                  <label class="check"><input type="checkbox" id="csvReplace" /> Replace all existing rows</label>
+                  <button type="button" id="addRowsBtn" class="primary">Add rows</button>
+                  <span id="csvResult" class="muted"></span>
+                </div>
+              </details>
             </div>
           </section>
 
