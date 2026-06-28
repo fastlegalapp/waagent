@@ -589,6 +589,120 @@ const BUSINESS_TEMPLATES = [
   },
 ];
 
+const SERVICE_INSTRUCTIONS =
+  'These are the services/packages we offer with pricing. Explain what each includes, quote prices, '
+  + 'and help the customer book — ask for their preferred date and time, then confirm the booking.';
+
+const SERVICE_TEMPLATES = [
+  {
+    key: 'tuition', label: '📚 Tuition / coaching', name: 'Courses', kind: 'service',
+    columns: ['course', 'fee', 'schedule', 'duration'],
+    instructions:
+      'These are the courses/batches we offer. Share fees and timings, answer parents\' questions, '
+      + 'and help them enrol or book a demo class.',
+    rows: [
+      { course: 'Class 10 Maths', fee: '1500/month', schedule: 'Mon-Fri 5pm', duration: '1 hr' },
+      { course: 'Class 12 Physics', fee: '2000/month', schedule: 'Mon-Wed-Fri 7pm', duration: '1.5 hr' },
+      { course: 'Spoken English', fee: '3000', schedule: 'Sat-Sun 11am', duration: '2 months' },
+      { course: 'JEE Foundation', fee: '5000/month', schedule: 'Daily 6pm', duration: '2 hr' },
+    ],
+  },
+  {
+    key: 'gym', label: '🏋️ Gym / fitness', name: 'Membership Plans', kind: 'service',
+    columns: ['plan', 'price', 'duration', 'includes'],
+    instructions:
+      'These are our membership plans. Explain what each includes, quote prices, and help the customer '
+      + 'join or book a free trial session.',
+    rows: [
+      { plan: 'Monthly', price: '1500', duration: '1 month', includes: 'Gym + cardio' },
+      { plan: 'Quarterly', price: '4000', duration: '3 months', includes: 'Gym + cardio + 1 PT session' },
+      { plan: 'Annual', price: '12000', duration: '12 months', includes: 'All access + diet plan' },
+      { plan: 'Personal Training', price: '6000', duration: '1 month', includes: 'Daily 1-on-1' },
+    ],
+  },
+  {
+    key: 'homeservices', label: '🧹 Home services', name: 'Home Services', kind: 'service',
+    columns: ['service', 'price', 'duration'],
+    instructions:
+      'Home services like cleaning, plumbing, electrical and pest control. Quote prices, and help the '
+      + 'customer book a visit — ask for their address and preferred time slot.',
+    rows: [
+      { service: 'Full Home Deep Cleaning', price: '2499', duration: '4-5 hr' },
+      { service: 'Bathroom Cleaning', price: '499', duration: '1 hr' },
+      { service: 'Plumbing Visit', price: '299', duration: 'on inspection' },
+      { service: 'Electrician Visit', price: '299', duration: 'on inspection' },
+      { service: 'Pest Control', price: '1499', duration: '2 hr' },
+    ],
+  },
+  {
+    key: 'carservice', label: '🚗 Car / bike service', name: 'Vehicle Services', kind: 'service',
+    columns: ['service', 'price', 'duration'],
+    instructions:
+      'Vehicle servicing and repairs. Quote prices, explain what each service covers, and help the '
+      + 'customer book a slot or pickup.',
+    rows: [
+      { service: 'Bike General Service', price: '499', duration: '2 hr' },
+      { service: 'Car General Service', price: '2999', duration: '4 hr' },
+      { service: 'Oil Change', price: '799', duration: '30 min' },
+      { service: 'Wheel Alignment', price: '499', duration: '45 min' },
+      { service: 'Car Wash & Polish', price: '699', duration: '1 hr' },
+    ],
+  },
+  {
+    key: 'photography', label: '📸 Photography', name: 'Photography Packages', kind: 'service',
+    columns: ['package', 'price', 'includes'],
+    instructions:
+      'Photography/videography packages. Explain what each includes, quote prices, check the event date '
+      + 'availability, and help the customer book.',
+    rows: [
+      { package: 'Pre-Wedding Shoot', price: '15000', includes: '3 hr shoot + 50 edited photos' },
+      { package: 'Wedding (1 day)', price: '40000', includes: 'Photo + video + album' },
+      { package: 'Birthday/Event', price: '8000', includes: '2 hr + 30 edited photos' },
+      { package: 'Product Shoot', price: '5000', includes: 'Up to 20 products' },
+    ],
+  },
+  {
+    key: 'travel', label: '✈️ Travel agency', name: 'Travel Packages', kind: 'service',
+    columns: ['package', 'price', 'duration', 'includes'],
+    instructions:
+      'Holiday and travel packages. Share details and prices, answer questions, and help the customer '
+      + 'book — ask for travel dates and number of people.',
+    rows: [
+      { package: 'Goa 3N/4D', price: '12000', duration: '4 days', includes: 'Hotel + breakfast + sightseeing' },
+      { package: 'Manali 4N/5D', price: '15000', duration: '5 days', includes: 'Hotel + cab + meals' },
+      { package: 'Kerala 5N/6D', price: '22000', duration: '6 days', includes: 'Houseboat + hotel + transfers' },
+      { package: 'Dubai 4N/5D', price: '55000', duration: '5 days', includes: 'Flights + hotel + visa' },
+    ],
+  },
+  {
+    key: 'realestate', label: '🏠 Real estate', name: 'Property Listings', kind: 'service',
+    columns: ['property', 'location', 'price', 'type'],
+    instructions:
+      'Property listings for sale/rent. Share details, answer questions, and capture the buyer\'s '
+      + 'requirement (budget, location, BHK), then offer to schedule a site visit.',
+    rows: [
+      { property: '2 BHK Flat', location: 'Whitefield', price: '65 Lakh', type: 'Sale' },
+      { property: '3 BHK Villa', location: 'Sarjapur', price: '1.2 Cr', type: 'Sale' },
+      { property: '1 BHK Apartment', location: 'HSR Layout', price: '18000/month', type: 'Rent' },
+      { property: 'Commercial Office', location: 'MG Road', price: '85000/month', type: 'Rent' },
+    ],
+  },
+  {
+    key: 'laundry', label: '🧺 Laundry / dry clean', name: 'Laundry Price List', kind: 'service',
+    columns: ['item', 'service', 'price'],
+    instructions:
+      'Laundry and dry-cleaning rates. Quote per-item prices, and help the customer schedule a pickup — '
+      + 'ask for their address and preferred pickup time.',
+    rows: [
+      { item: 'Shirt', service: 'Wash & Iron', price: '30' },
+      { item: 'Trouser', service: 'Wash & Iron', price: '35' },
+      { item: 'Suit (2 pc)', service: 'Dry Clean', price: '250' },
+      { item: 'Saree', service: 'Dry Clean', price: '150' },
+      { item: 'Bedsheet', service: 'Wash & Iron', price: '60' },
+    ],
+  },
+];
+
 const GENERIC_TEMPLATES = [
   {
     key: 'products', label: '🛍️ Products (blank)', name: 'Products',
@@ -653,6 +767,56 @@ const GENERIC_TEMPLATES = [
   },
 ];
 
+// The business name without the leading emoji (e.g. "🛒 Grocery store" → "Grocery store").
+function bizLabel(t) {
+  return t.label.replace(/^[^A-Za-z0-9]+/, '').replace(/\s*\(blank\)$/i, '').trim();
+}
+
+// Build a ready-to-use "how to chat" instruction + business description for a
+// template, based on whether it sells products or offers services. This is what
+// gets written into the Persona settings so the agent knows how to converse.
+function chatSetupFor(t) {
+  const label = bizLabel(t);
+  const businessDescription = `We are a ${label} business. We help customers over WhatsApp.`;
+  const common =
+    ' Greet new people warmly and by name when you know it. Keep replies short, polite and in the '
+    + 'customer\'s language (Hindi/English/Hinglish — match how they write). Answer only from our '
+    + 'list/FAQ details; if you are unsure or it needs the owner, say you\'ll check and hand over.';
+  const personaCustom = t.kind === 'service'
+    ? `You are the assistant for our ${label}. Understand what service the customer needs, explain `
+      + 'what it includes, quote the price from our list, and help them book — ask for their preferred '
+      + 'date/time (and address if we visit them), then confirm the booking details back to them.'
+      + common
+    : `You are the assistant for our ${label}. Help customers find products, answer price and `
+      + 'availability questions from our list, suggest items, and take orders — ask for quantity and '
+      + 'whether they want pickup or delivery, then confirm the order summary and total before finalising.'
+      + common;
+  return { businessDescription, personaCustom };
+}
+
+// Write the template's chat instructions into Persona settings. If the user has
+// already written their own business description / instructions, ask before
+// replacing them so we never silently overwrite their work.
+async function applyChatSetup(t) {
+  if (!t.kind) return false; // generic/abstract templates carry no chat guide
+  let current = {};
+  try { ({ settings: current } = await api('/api/settings')); } catch (_) { current = {}; }
+  const hasOwn = (current.businessDescription || '').trim() || (current.personaCustom || '').trim();
+  if (hasOwn && !confirm('Set up chat instructions for this business? This will replace your current Persona description and custom instructions.')) {
+    return false;
+  }
+  const { businessDescription, personaCustom } = chatSetupFor(t);
+  const payload = { businessDescription, personaCustom };
+  if (!(current.personaStyle || '').trim()) payload.personaStyle = 'friendly';
+  try {
+    await api('/api/settings', { method: 'PUT', body: JSON.stringify(payload) });
+    try { await loadSettings(); } catch (_) {}
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 async function createFromTemplate(t) {
   const { list } = await api('/api/lists', { method: 'POST', body: JSON.stringify({ name: t.name }) });
   // Apply instructions + reminder config.
@@ -669,11 +833,17 @@ async function createFromTemplate(t) {
   if (Array.isArray(t.rows) && t.rows.length) {
     try { await api(`/api/lists/${list.id}/items`, { method: 'POST', body: JSON.stringify({ items: t.rows }) }); } catch (_) {}
   }
+  // Auto-configure how the agent should chat for this kind of business.
+  const chatSet = await applyChatSetup(t);
   await selectList(list.id);
   // If there were no sample rows, still seed the add-row form with the columns.
   if ((!t.rows || !t.rows.length) && Array.isArray(t.columns) && t.columns.length) {
     currentColumns = t.columns.slice();
     renderRowForm();
+  }
+  if (chatSet) {
+    $('rowResult').textContent = '✅ List created and chat instructions set up (see Persona). Edit anything you like.';
+    setTimeout(() => ($('rowResult').textContent = ''), 6000);
   }
 }
 
@@ -682,8 +852,9 @@ function templateChip(t) {
   b.type = 'button';
   b.className = 'template-chip';
   b.textContent = t.label;
-  const sample = t.rows && t.rows.length ? ` — includes ${t.rows.length} sample rows you can edit` : '';
-  b.title = (t.instructions || t.name) + sample;
+  const sample = t.rows && t.rows.length ? ` — includes ${t.rows.length} sample rows` : '';
+  const chat = t.kind ? '; also sets up how the agent chats' : '';
+  b.title = (t.instructions || t.name) + sample + chat + (t.kind ? '. You can edit everything.' : '');
   b.onclick = () => createFromTemplate(t);
   return b;
 }
@@ -692,7 +863,10 @@ function renderTemplateChips() {
   const cont = $('templateChips');
   if (!cont) return;
   cont.innerHTML = '';
-  BUSINESS_TEMPLATES.forEach((t) => cont.appendChild(templateChip(t)));
+  // Shops (product catalogues) — mark as product businesses for chat setup.
+  BUSINESS_TEMPLATES.forEach((t) => { t.kind = t.kind || 'product'; cont.appendChild(templateChip(t)); });
+  // Service businesses.
+  SERVICE_TEMPLATES.forEach((t) => cont.appendChild(templateChip(t)));
   const sep = document.createElement('span');
   sep.className = 'template-sep';
   sep.textContent = 'or';
