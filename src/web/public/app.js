@@ -454,6 +454,111 @@ async function loadItems() {
   try { renderItems((await api(`/api/lists/${currentListId}/items`)).items); } catch (_) {}
 }
 
+// Ready-made list templates: a name, the columns to pre-fill the add-row form,
+// instructions for the agent, and (optionally) reminder defaults. Picking one
+// creates the list pre-configured so the user only has to add rows.
+const LIST_TEMPLATES = [
+  {
+    key: 'products', label: '🛍️ Products', name: 'Products',
+    columns: ['name', 'price', 'description', 'image'],
+    instructions:
+      'These are our products and prices. Quote from here, answer questions, take orders, '
+      + 'and if a customer asks for a photo share the value in the "image" column.',
+  },
+  {
+    key: 'services', label: '🧰 Services', name: 'Services',
+    columns: ['service', 'price', 'duration', 'description'],
+    instructions:
+      'These are the services we offer with pricing. Explain what each includes, quote prices, '
+      + 'and help the customer book or take the next step.',
+  },
+  {
+    key: 'pricelist', label: '🏷️ Price list', name: 'Price List',
+    columns: ['item', 'unit', 'price'],
+    instructions: 'Our rate card. Answer "how much for X" questions using these prices.',
+  },
+  {
+    key: 'leads', label: '🎯 Leads', name: 'Leads',
+    columns: ['name', 'phone', 'interest', 'status', 'notes'],
+    instructions:
+      'These are leads/prospects. If a message comes from one of these numbers, greet them by '
+      + 'name, remember their interest, and gently move them towards a sale.',
+  },
+  {
+    key: 'customers', label: '👥 Customers', name: 'Customers',
+    columns: ['name', 'phone', 'email', 'notes'],
+    instructions: 'Our customers. Greet them by name and use their notes for context.',
+  },
+  {
+    key: 'faq', label: '❓ FAQ', name: 'FAQs',
+    columns: ['question', 'answer'],
+    instructions: 'Common questions and the exact answers to give. Match the closest question and reply with its answer.',
+  },
+  {
+    key: 'emi', label: '🏦 EMI / Loan customers', name: 'EMI Customers',
+    columns: ['name', 'phone', 'amount', 'due_date'],
+    instructions: 'Loan/EMI customers and their due dates. Use this to answer balance and due-date questions.',
+    reminder: {
+      enabled: true, dateField: 'due_date', phoneField: 'phone', daysBefore: 3,
+      template: 'Hi {name}, your EMI of Rs {amount} is due on {due_date}. Please pay on time to avoid late charges.',
+    },
+  },
+  {
+    key: 'gst', label: '📊 GST / Tax clients', name: 'GST Clients',
+    columns: ['name', 'phone', 'gstin', 'due_date'],
+    instructions: 'Tax/GST filing clients and their filing due dates.',
+    reminder: {
+      enabled: true, dateField: 'due_date', phoneField: 'phone', daysBefore: 3,
+      template: 'Hi {name}, your GST filing is due on {due_date}. Please share your data so we can file on time.',
+    },
+  },
+  {
+    key: 'appointments', label: '📅 Appointments', name: 'Appointments',
+    columns: ['name', 'phone', 'date', 'notes'],
+    instructions: 'Booked appointments. Confirm timings and remind people before their slot.',
+    reminder: {
+      enabled: true, dateField: 'date', phoneField: 'phone', daysBefore: 1,
+      template: 'Hi {name}, this is a reminder of your appointment on {date}. See you then!',
+    },
+  },
+];
+
+async function createFromTemplate(t) {
+  const { list } = await api('/api/lists', { method: 'POST', body: JSON.stringify({ name: t.name }) });
+  // Apply instructions + reminder config.
+  const patch = { name: t.name, instructions: t.instructions || '' };
+  if (t.reminder) {
+    patch.reminderEnabled = true;
+    patch.reminderDateField = t.reminder.dateField;
+    patch.reminderPhoneField = t.reminder.phoneField;
+    patch.reminderDaysBefore = t.reminder.daysBefore;
+    patch.reminderTemplate = t.reminder.template;
+  }
+  try { await api(`/api/lists/${list.id}`, { method: 'PUT', body: JSON.stringify(patch) }); } catch (_) {}
+  await selectList(list.id);
+  // The list has no rows yet, so seed the add-row form with the template's columns.
+  if (Array.isArray(t.columns) && t.columns.length) {
+    currentColumns = t.columns.slice();
+    renderRowForm();
+  }
+}
+
+function renderTemplateChips() {
+  const cont = $('templateChips');
+  if (!cont) return;
+  cont.innerHTML = '';
+  LIST_TEMPLATES.forEach((t) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'template-chip';
+    b.textContent = t.label;
+    b.title = t.instructions || t.name;
+    b.onclick = () => createFromTemplate(t);
+    cont.appendChild(b);
+  });
+}
+renderTemplateChips();
+
 $('newListBtn').onclick = async () => {
   const name = prompt('List name (e.g. Products, EMI Customers, Leads)');
   if (!name || !name.trim()) return;

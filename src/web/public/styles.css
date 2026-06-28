@@ -265,6 +265,16 @@ legend { color: var(--muted); font-size: 13px; padding: 0 6px; font-weight: 600;
   border-radius: 999px; padding: 7px 14px; font-weight: 600; font-size: 13px;
 }
 .list-chip.active { background: var(--gold-soft); border-color: var(--accent); }
+
+.templates { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 2px 0 4px; }
+.templates-label { font-size: 12px; font-weight: 600; color: var(--muted); }
+.template-chips { display: flex; gap: 7px; flex-wrap: wrap; }
+.template-chip {
+  background: var(--bg2); color: var(--text); border: 1px dashed var(--line);
+  border-radius: 999px; padding: 6px 12px; font-weight: 600; font-size: 12.5px;
+}
+.template-chip:hover { border-style: solid; border-color: var(--accent); background: var(--gold-soft); }
+
 .list-editor { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
 .list-editor-head { display: flex; gap: 10px; align-items: center; }
 .list-name { font-size: 16px; font-weight: 700; flex: 1; }
