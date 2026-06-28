@@ -523,11 +523,17 @@ const BUSINESS_TEMPLATES = [
     ],
   },
   {
-    key: 'pharmacy', label: '💊 Pharmacy', name: 'Pharmacy Stock',
+    key: 'pharmacy', label: '💊 Medical store / pharmacy', name: 'Medical Store Stock',
     columns: ['name', 'pack', 'price'],
     instructions:
-      'Our medicine and healthcare stock. Help with availability and prices. '
-      + 'Never give medical advice or dosage — for prescriptions, ask the customer to share the doctor\'s prescription.',
+      'Our medicine and healthcare stock. Help with availability and prices, and take orders for home '
+      + 'delivery. NEVER give medical advice, dosage or suggest medicines for symptoms — for any '
+      + 'prescription medicine, ask the customer to share the doctor\'s prescription, and for health '
+      + 'concerns advise them to consult a doctor.',
+    chatExtra:
+      'IMPORTANT: This is a medical store. Do NOT diagnose, recommend medicines for symptoms, or give '
+      + 'dosage advice. For prescription medicines, ask for a photo of the doctor\'s prescription. For '
+      + 'any health problem, politely advise consulting a doctor.',
     rows: [
       { name: 'Paracetamol 500mg', pack: '10 tablets', price: '25' },
       { name: 'Dolo 650', pack: '15 tablets', price: '32' },
@@ -535,6 +541,8 @@ const BUSINESS_TEMPLATES = [
       { name: 'Dettol Antiseptic', pack: '100 ml', price: '60' },
       { name: 'Hand Sanitizer', pack: '200 ml', price: '90' },
       { name: 'Surgical Mask', pack: '50 pcs', price: '150' },
+      { name: 'Glucometer Strips', pack: '25 strips', price: '550' },
+      { name: 'Vitamin C Tablets', pack: '20 tablets', price: '110' },
     ],
   },
   {
@@ -593,7 +601,54 @@ const SERVICE_INSTRUCTIONS =
   'These are the services/packages we offer with pricing. Explain what each includes, quote prices, '
   + 'and help the customer book — ask for their preferred date and time, then confirm the booking.';
 
+const MEDICAL_CHAT_EXTRA =
+  'IMPORTANT: This is a healthcare service. Do NOT diagnose, prescribe medicines, or give dosage/'
+  + 'treatment advice over chat. Help with information, fees and appointments only; for any medical '
+  + 'concern, ask the patient to book a consultation with the doctor.';
+
 const SERVICE_TEMPLATES = [
+  {
+    key: 'ayurveda', label: '🌿 Ayurveda doctor / clinic', name: 'Ayurveda Treatments', kind: 'service',
+    columns: ['treatment', 'price', 'duration'],
+    instructions:
+      'Our Ayurvedic consultations and therapies. Share what each includes and its price, and help the '
+      + 'patient book an appointment. NEVER diagnose or recommend medicines/remedies over chat — for any '
+      + 'health concern, ask them to book a consultation with the doctor.',
+    chatExtra: MEDICAL_CHAT_EXTRA,
+    rows: [
+      { treatment: 'Doctor Consultation', price: '500', duration: '30 min' },
+      { treatment: 'Panchakarma (per session)', price: '2500', duration: '90 min' },
+      { treatment: 'Abhyanga Full Body Massage', price: '1500', duration: '60 min' },
+      { treatment: 'Shirodhara', price: '1800', duration: '45 min' },
+      { treatment: 'Nasya Therapy', price: '800', duration: '30 min' },
+      { treatment: 'Kati Basti (back pain)', price: '1200', duration: '45 min' },
+    ],
+    reminder: {
+      enabled: true, dateField: 'date', phoneField: 'phone', daysBefore: 1,
+      template: 'Hi {name}, this is a reminder of your appointment at our Ayurveda clinic on {date}. Please come 10 minutes early.',
+    },
+  },
+  {
+    key: 'hospital', label: '🏥 Hospital / clinic', name: 'Hospital Services', kind: 'service',
+    columns: ['service', 'department', 'price'],
+    instructions:
+      'Our hospital/clinic services, departments and charges. Help patients with information, OPD timings, '
+      + 'fees and appointment booking. NEVER diagnose, prescribe, or give medical advice over chat — for '
+      + 'symptoms or emergencies, ask them to book an appointment or visit immediately / call emergency.',
+    chatExtra: MEDICAL_CHAT_EXTRA + ' For emergencies, tell them to come to the hospital immediately or call the emergency number.',
+    rows: [
+      { service: 'General OPD Consultation', department: 'General Medicine', price: '300' },
+      { service: 'Specialist Consultation', department: 'Cardiology', price: '800' },
+      { service: 'Complete Blood Count (CBC)', department: 'Lab', price: '350' },
+      { service: 'X-Ray (single)', department: 'Radiology', price: '500' },
+      { service: 'ECG', department: 'Cardiology', price: '400' },
+      { service: 'Full Body Health Checkup', department: 'Preventive', price: '2500' },
+    ],
+    reminder: {
+      enabled: true, dateField: 'date', phoneField: 'phone', daysBefore: 1,
+      template: 'Hi {name}, reminder of your appointment at our hospital on {date}. Please bring your previous reports.',
+    },
+  },
   {
     key: 'tuition', label: '📚 Tuition / coaching', name: 'Courses', kind: 'service',
     columns: ['course', 'fee', 'schedule', 'duration'],
@@ -782,7 +837,7 @@ function chatSetupFor(t) {
     ' Greet new people warmly and by name when you know it. Keep replies short, polite and in the '
     + 'customer\'s language (Hindi/English/Hinglish — match how they write). Answer only from our '
     + 'list/FAQ details; if you are unsure or it needs the owner, say you\'ll check and hand over.';
-  const personaCustom = t.kind === 'service'
+  let personaCustom = t.kind === 'service'
     ? `You are the assistant for our ${label}. Understand what service the customer needs, explain `
       + 'what it includes, quote the price from our list, and help them book — ask for their preferred '
       + 'date/time (and address if we visit them), then confirm the booking details back to them.'
@@ -791,6 +846,8 @@ function chatSetupFor(t) {
       + 'availability questions from our list, suggest items, and take orders — ask for quantity and '
       + 'whether they want pickup or delivery, then confirm the order summary and total before finalising.'
       + common;
+  // Extra business-specific guidance (e.g. medical safety disclaimers).
+  if (t.chatExtra) personaCustom += ' ' + t.chatExtra;
   return { businessDescription, personaCustom };
 }
 
