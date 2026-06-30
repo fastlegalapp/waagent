@@ -1026,7 +1026,19 @@ async function loadPaymentQr() {
 $('qrFile').onchange = () => {
   const file = $('qrFile').files[0];
   if (!file) return;
-  if (file.size > 1200000) { $('qrMsg').textContent = 'Image too large (max ~1MB).'; return; }
+  if (!/^image\/(png|jpe?g|webp)$/i.test(file.type)) {
+    $('qrMsg').textContent = 'Please choose a PNG, JPG or WebP image.';
+    $('qrFile').value = '';
+    return;
+  }
+  // base64 inflates ~33%; keep the raw file well under the server's limit so it
+  // is never silently rejected.
+  if (file.size > 1300000) {
+    $('qrMsg').textContent = 'Image too large (max ~1.3MB). Try a smaller screenshot.';
+    $('qrFile').value = '';
+    return;
+  }
+  $('qrMsg').textContent = 'Uploading…';
   const reader = new FileReader();
   reader.onload = async () => {
     try {
@@ -1038,6 +1050,7 @@ $('qrFile').onchange = () => {
       $('qrMsg').textContent = e.message;
     }
   };
+  reader.onerror = () => { $('qrMsg').textContent = 'Could not read that file.'; };
   reader.readAsDataURL(file);
   $('qrFile').value = '';
 };

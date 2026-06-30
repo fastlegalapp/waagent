@@ -82,11 +82,18 @@ router.put('/', async (req, res) => {
       .filter((f) => f.q && f.a);
     patch.faqs = JSON.stringify(faqs);
   }
-  // Payment QR image (data URL). Empty string clears it.
+  // Payment QR image (data URL). Empty string clears it. Reject bad input
+  // LOUDLY (400) instead of silently dropping it — otherwise the dashboard says
+  // "Saved" while nothing was stored, and the agent later has no QR to send.
   if (typeof b.paymentQr === 'string') {
     const v = b.paymentQr.trim();
-    if (v === '') patch.payment_qr = '';
-    else if (/^data:image\/(png|jpe?g|webp);base64,/i.test(v) && v.length < 1500000) {
+    if (v === '') {
+      patch.payment_qr = '';
+    } else if (!/^data:image\/(png|jpe?g|webp);base64,/i.test(v)) {
+      return res.status(400).json({ error: 'QR must be a PNG, JPG or WebP image.' });
+    } else if (v.length > 1900000) {
+      return res.status(400).json({ error: 'QR image is too large — please upload one under ~1.3MB.' });
+    } else {
       patch.payment_qr = v;
     }
   }

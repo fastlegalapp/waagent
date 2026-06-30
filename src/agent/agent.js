@@ -147,6 +147,14 @@ function buildSystemPrompt(owner, examples) {
     'Honesty: never invent specifics (prices, dates, details) — if unsure, escalate with',
     `a short note like "let me check and get right back to you". No binding legal,`,
     `financial, or medical advice — escalate anything needing ${name}'s real judgement.`,
+    owner.hasPaymentQr
+      ? 'PAYMENT: A payment QR code is on file. Whenever the client needs to pay, asks how '
+        + 'to pay, or you ask them for payment, you MUST actually send it by calling the '
+        + 'send_payment_qr tool (put the amount in the caption). Do NOT just say you are '
+        + 'sharing the QR or describe it in text — calling the tool is the only thing that '
+        + 'sends the image. After it sends, tell them to scan and pay.'
+      : 'PAYMENT: No payment QR has been uploaded yet, so you cannot send one. If the client '
+        + 'wants to pay, take the order and tell them the owner will share payment details.',
     'Tools: look up products/prices/customers/dues → lookup_list. Client wants to',
     'see a product → send_photo. Collecting payment / "how do I pay" → send_payment_qr.',
     'Client confirmed an order → record_order. Client says they have paid (or sends',

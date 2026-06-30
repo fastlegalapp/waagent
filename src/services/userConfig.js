@@ -65,6 +65,7 @@ async function resolve(userId) {
       faqs: parseFaqs(row.faqs),
       lists: listDir,
       learnedStyle: row.learned_style || '',
+      hasPaymentQr: !!(row.payment_qr && row.payment_qr.length),
     },
     ai,
     reply: {
