@@ -2,6 +2,7 @@
 
 const logger = require('../logger');
 const mem = require('../db/messages');
+const crm = require('../db/crm');
 const agent = require('../agent/agent');
 const {
   extractText,
@@ -112,6 +113,13 @@ async function handleMessage({ userId, settings, msg, send, sendImage, downloadM
   }
   // Mark client activity (resets the follow-up flag for this chat).
   mem.setClientActivity(userId, chatKey, msgTs * 1000).catch(() => {});
+
+  // CRM: capture this person as a lead (or bump an existing contact). Done for
+  // every inbound 1:1 message regardless of reply mode, so leads are recorded
+  // even when auto-reply is off. Best-effort — never blocks handling.
+  if (settings.crm?.enabled !== false && !isGroup(remoteJid)) {
+    crm.recordInbound(userId, { phone: number, chatId: chatKey, name: clientName }).catch(() => {});
+  }
 
   if (settings.reply.mode === 'off') return mark('mode_off'); // logging only
   if (!settings.ai.apiKey) {

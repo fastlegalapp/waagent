@@ -26,6 +26,17 @@ function parseFaqs(value) {
   }
 }
 
+// CRM per-stage message templates are stored as a JSON string {stage: text}.
+function parseCrmTemplates(value) {
+  if (value && typeof value === 'object') return value;
+  try {
+    const o = JSON.parse(value || '{}');
+    return o && typeof o === 'object' ? o : {};
+  } catch (_) {
+    return {};
+  }
+}
+
 // Resolve a user's stored settings into the runtime config the agent + message
 // handler expect. Includes the DECRYPTED Anthropic key — never send this to the
 // browser; use sanitize() for that.
@@ -83,6 +94,10 @@ async function resolve(userId) {
         hours: Number(row.followups_hours || 24),
       },
     },
+    crm: {
+      enabled: row.crm_enabled !== false,
+      autoConvert: row.crm_auto_convert !== false,
+    },
   };
 }
 
@@ -116,7 +131,10 @@ async function sanitize(userId) {
     followupsHours: Number(row.followups_hours || 24),
     businessHoursStart: row.business_hours_start,
     businessHoursEnd: row.business_hours_end,
+    crmEnabled: row.crm_enabled !== false,
+    crmAutoConvert: row.crm_auto_convert !== false,
+    crmTemplates: parseCrmTemplates(row.crm_templates),
   };
 }
 
-module.exports = { resolve, sanitize, parseList, parseFaqs };
+module.exports = { resolve, sanitize, parseList, parseFaqs, parseCrmTemplates };

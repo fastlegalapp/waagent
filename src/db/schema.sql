@@ -86,6 +86,30 @@ CREATE TABLE IF NOT EXISTS data_items (
 CREATE INDEX IF NOT EXISTS data_items_list_idx ON data_items (list_id);
 CREATE INDEX IF NOT EXISTS data_items_user_idx ON data_items (user_id);
 
+-- CRM: one row per person who has contacted the owner on WhatsApp. Leads are
+-- captured automatically and move through a pipeline (new → contacted →
+-- qualified → customer / lost). Auto-converted to "customer" when they order/pay.
+CREATE TABLE IF NOT EXISTS crm_contacts (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  phone           TEXT NOT NULL,                       -- normalized digits
+  chat_id         TEXT NOT NULL DEFAULT '',            -- canonical chat key (phone JID) to message them
+  name            TEXT NOT NULL DEFAULT '',
+  stage           TEXT NOT NULL DEFAULT 'new',         -- new|contacted|qualified|customer|lost
+  source          TEXT NOT NULL DEFAULT 'whatsapp',
+  notes           TEXT NOT NULL DEFAULT '',
+  value           TEXT NOT NULL DEFAULT '',            -- deal/order value, free-form
+  tags            TEXT NOT NULL DEFAULT '',
+  msg_count       INTEGER NOT NULL DEFAULT 0,
+  auto_stage      BOOLEAN NOT NULL DEFAULT true,       -- false once the owner sets the stage by hand
+  last_message_at TIMESTAMPTZ,
+  converted_at    TIMESTAMPTZ,                         -- when they became a customer
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (user_id, phone)
+);
+CREATE INDEX IF NOT EXISTS crm_contacts_user_idx ON crm_contacts (user_id, stage);
+
 -- Last-reply timestamps for per-chat rate limiting.
 CREATE TABLE IF NOT EXISTS chat_state (
   user_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -115,3 +139,6 @@ ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS followups_enabled BOOLEAN NOT
 ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS followups_hours INTEGER NOT NULL DEFAULT 24;
 ALTER TABLE chat_state ADD COLUMN IF NOT EXISTS last_client_at BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE chat_state ADD COLUMN IF NOT EXISTS followup_done BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS crm_enabled BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS crm_auto_convert BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS crm_templates TEXT NOT NULL DEFAULT '{}';

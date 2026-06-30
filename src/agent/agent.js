@@ -5,6 +5,7 @@ const OpenAI = require('openai');
 const logger = require('../logger');
 const drive = require('./tools/drive');
 const lists = require('../db/lists');
+const crm = require('../db/crm');
 const settingsDb = require('../db/settings');
 
 // Pull an image URL out of a list row's fields (an image/photo column, or any
@@ -362,6 +363,10 @@ async function runTool(name, input, settings, actions = {}) {
         customer: input.customer || actions.customerNumber || '',
         notes: input.notes,
       });
+      // CRM auto-convert: placing an order makes them a customer.
+      if (settings.crm?.autoConvert !== false && actions.customerNumber) {
+        crm.convertToCustomer(settings.userId, actions.customerNumber, { value: input.total }).catch(() => {});
+      }
       return JSON.stringify({ recorded: true, order: saved });
     } catch (err) {
       return JSON.stringify({ recorded: false, reason: 'could not record the order' });
@@ -371,6 +376,11 @@ async function runTool(name, input, settings, actions = {}) {
     try {
       const order = await lists.markOrderPaid(settings.userId, actions.customerNumber, input.note);
       if (!order) return JSON.stringify({ marked: false, reason: 'no open order found for this client' });
+      // CRM auto-convert: a paid order makes them a customer.
+      if (settings.crm?.autoConvert !== false && actions.customerNumber) {
+        const total = order.fields && order.fields.total;
+        crm.convertToCustomer(settings.userId, actions.customerNumber, { value: total }).catch(() => {});
+      }
       if (actions.notifyOwner) {
         const what = order.fields && order.fields.items ? ` for: ${order.fields.items}` : '';
         await actions.notifyOwner(

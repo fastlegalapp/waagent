@@ -307,6 +307,31 @@ legend { color: var(--muted); font-size: 13px; padding: 0 6px; font-weight: 600;
 .csv-paste summary:hover { color: var(--text); }
 .csv-paste[open] summary { margin-bottom: 6px; }
 
+/* CRM & Leads */
+.crm-toggles { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 16px; }
+.crm-pipeline { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0 16px; }
+.pipe-card {
+  flex: 1 1 90px; min-width: 90px; background: var(--bg2); border: 1px solid var(--line);
+  border-radius: 10px; padding: 10px 12px; text-align: left; display: flex; flex-direction: column; gap: 2px;
+}
+.pipe-card:hover { border-color: #d7dbe0; }
+.pipe-card.active { background: var(--gold-soft); border-color: var(--accent); }
+.pipe-n { font-family: var(--font-display); font-size: 22px; font-weight: 600; line-height: 1; }
+.pipe-l { font-size: 12px; color: var(--muted); }
+.crm-controls { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+.crm-controls input { flex: 1; margin: 0; }
+.crm-controls .small { width: auto; flex-shrink: 0; }
+.crm-data td { white-space: nowrap; vertical-align: middle; }
+.crm-data input, .crm-data select { margin: 0; padding: 6px 8px; font-size: 13px; min-width: 90px; }
+.crm-phone { font-variant-numeric: tabular-nums; color: var(--muted); }
+.crm-actions { display: flex; gap: 6px; }
+.crm-actions .small { width: auto; padding: 5px 10px; }
+.crm-templates { margin-top: 16px; }
+.crm-templates summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.crm-tpl { margin: 12px 0; }
+.crm-tpl-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.crm-tpl-head .small { width: auto; flex-shrink: 0; }
+
 .row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
 .savebar { display: flex; align-items: center; gap: 14px; margin-top: 4px; }
 .savebar button { margin-left: auto; }

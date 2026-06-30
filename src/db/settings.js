@@ -27,6 +27,9 @@ const UPDATABLE = new Set([
   'followups_hours',
   'business_hours_start',
   'business_hours_end',
+  'crm_enabled',
+  'crm_auto_convert',
+  'crm_templates',
 ]);
 
 async function getRaw(userId) {

@@ -62,7 +62,7 @@ $('logoutBtn').onclick = async () => {
 
 // ── Sidebar nav ──────────────────────────────────────────────────────────────
 // Standalone panels live directly under .content; the rest live in #settingsForm.
-const STANDALONE_PANELS = ['connect', 'lists', 'payments'];
+const STANDALONE_PANELS = ['connect', 'lists', 'crm', 'payments'];
 function showPanel(name) {
   document.querySelectorAll('.side-nav button').forEach((b) =>
     b.classList.toggle('active', b.dataset.nav === name),
@@ -76,6 +76,7 @@ function showPanel(name) {
     p.classList.toggle('hidden', p.dataset.panel !== name),
   );
   if (name === 'lists') loadLists();
+  if (name === 'crm') loadCrm();
   if (name === 'payments') loadPaymentQr();
 }
 document.querySelectorAll('.side-nav button').forEach((b) => {
@@ -1006,6 +1007,192 @@ async function deleteItem(itemId) {
   await loadItems();
   loadLists();
 }
+
+// ── CRM & Leads ──────────────────────────────────────────────────────────────
+const CRM_STAGES = [
+  { key: 'new', label: 'New leads', emoji: '🆕' },
+  { key: 'contacted', label: 'Contacted', emoji: '💬' },
+  { key: 'qualified', label: 'Qualified', emoji: '⭐' },
+  { key: 'customer', label: 'Customers', emoji: '✅' },
+  { key: 'lost', label: 'Lost', emoji: '✖️' },
+];
+const DEFAULT_CRM_TEMPLATES = {
+  new: 'Hi {name}! Thanks for reaching out to {business}. How can we help you today?',
+  contacted: 'Hi {name}, following up from {business} — did you have any questions? Happy to help.',
+  qualified: 'Hi {name}, would you like to go ahead? I can help you place the order or book a slot.',
+  customer: 'Thank you for choosing {business}, {name}! 🙏 We appreciate your business — reach out anytime.',
+  lost: "Hi {name}, we'd love to have you back at {business}. Reply and I'll share something special.",
+};
+const crmState = { filter: '', templates: {} };
+
+function stageLabel(key) {
+  const s = CRM_STAGES.find((x) => x.key === key);
+  return s ? `${s.emoji} ${s.label}` : key;
+}
+function timeAgo(ts) {
+  if (!ts) return '—';
+  const s = Math.round((Date.now() - ts) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.round(s / 60)}m ago`;
+  if (s < 86400) return `${Math.round(s / 3600)}h ago`;
+  return `${Math.round(s / 86400)}d ago`;
+}
+
+function renderCrmPipeline(stats) {
+  const cont = $('crmPipeline');
+  cont.innerHTML = '';
+  const all = document.createElement('button');
+  all.type = 'button';
+  all.className = 'pipe-card' + (crmState.filter === '' ? ' active' : '');
+  all.innerHTML = `<span class="pipe-n">${stats.total || 0}</span><span class="pipe-l">All contacts</span>`;
+  all.onclick = () => { crmState.filter = ''; loadCrm(); };
+  cont.appendChild(all);
+  CRM_STAGES.forEach((s) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pipe-card' + (crmState.filter === s.key ? ' active' : '');
+    b.innerHTML = `<span class="pipe-n">${stats[s.key] || 0}</span><span class="pipe-l">${s.emoji} ${s.label}</span>`;
+    b.onclick = () => { crmState.filter = s.key; loadCrm(); };
+    cont.appendChild(b);
+  });
+}
+
+function renderCrmTable(contacts) {
+  const cont = $('crmTable');
+  if (!contacts.length) {
+    cont.innerHTML = '<p class="muted small">No contacts here yet. Leads appear automatically as people message your WhatsApp.</p>';
+    return;
+  }
+  const opts = (sel) => CRM_STAGES.map((s) => `<option value="${s.key}"${s.key === sel ? ' selected' : ''}>${s.label}</option>`).join('');
+  const rows = contacts.map((c) => `
+    <tr data-id="${c.id}">
+      <td><input class="crm-name" value="${esc(c.name)}" placeholder="Name" /></td>
+      <td class="crm-phone">+${esc(c.phone)}</td>
+      <td><select class="crm-stage">${opts(c.stage)}</select></td>
+      <td><input class="crm-value" value="${esc(c.value)}" placeholder="—" /></td>
+      <td class="muted small">${timeAgo(c.lastMessageAt)}</td>
+      <td class="crm-actions">
+        <button class="ghost small" data-act="save">Save</button>
+        <button class="ghost small" data-act="msg">Message</button>
+        <button class="faq-del" data-act="del" title="Delete">✕</button>
+      </td>
+    </tr>`).join('');
+  cont.innerHTML = `<table class="data-table crm-data"><tr>
+      <th>Name</th><th>Number</th><th>Stage</th><th>Value</th><th>Last seen</th><th></th></tr>${rows}</table>`;
+  cont.querySelectorAll('tr[data-id]').forEach((tr) => {
+    const id = tr.dataset.id;
+    tr.querySelector('.crm-stage').onchange = (e) => crmPatch(id, { stage: e.target.value }, true);
+    tr.querySelector('[data-act="save"]').onclick = () => crmPatch(id, {
+      name: tr.querySelector('.crm-name').value,
+      value: tr.querySelector('.crm-value').value,
+    });
+    tr.querySelector('[data-act="msg"]').onclick = () => crmMessage(id);
+    tr.querySelector('[data-act="del"]').onclick = () => crmDelete(id);
+  });
+}
+
+function renderCrmTemplates() {
+  const cont = $('crmTemplateRows');
+  cont.innerHTML = '';
+  CRM_STAGES.forEach((s) => {
+    const val = crmState.templates[s.key] ?? DEFAULT_CRM_TEMPLATES[s.key] ?? '';
+    const wrap = document.createElement('div');
+    wrap.className = 'crm-tpl';
+    wrap.innerHTML = `
+      <div class="crm-tpl-head"><strong>${s.emoji} ${s.label}</strong>
+        <button type="button" class="ghost small" data-bcast="${s.key}">Send to all in “${s.label}”</button></div>
+      <textarea data-tpl="${s.key}" rows="2">${esc(val)}</textarea>`;
+    wrap.querySelector('[data-bcast]').onclick = () => crmBroadcast(s.key, wrap.querySelector('textarea').value);
+    cont.appendChild(wrap);
+  });
+}
+
+async function loadCrm() {
+  // Toggles + templates come from the settings record.
+  try {
+    const { settings } = await api('/api/settings');
+    $('crmEnabled').checked = settings.crmEnabled !== false;
+    $('crmAutoConvert').checked = settings.crmAutoConvert !== false;
+    crmState.templates = settings.crmTemplates && typeof settings.crmTemplates === 'object' ? settings.crmTemplates : {};
+  } catch (_) {}
+  renderCrmTemplates();
+  const qs = new URLSearchParams();
+  if (crmState.filter) qs.set('stage', crmState.filter);
+  if (crmState.search) qs.set('q', crmState.search);
+  try {
+    const { contacts, stats } = await api(`/api/crm/contacts?${qs.toString()}`);
+    renderCrmPipeline(stats);
+    renderCrmTable(contacts);
+  } catch (e) {
+    $('crmTable').innerHTML = `<p class="error">${esc(e.message)}</p>`;
+  }
+}
+
+async function crmPatch(id, patch, reload) {
+  try {
+    await api(`/api/crm/contacts/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+    $('crmMsg').textContent = 'Saved.';
+    setTimeout(() => ($('crmMsg').textContent = ''), 1500);
+    if (reload) loadCrm();
+  } catch (e) {
+    $('crmMsg').textContent = e.message;
+  }
+}
+async function crmDelete(id) {
+  if (!confirm('Delete this contact?')) return;
+  try { await api(`/api/crm/contacts/${id}`, { method: 'DELETE' }); loadCrm(); }
+  catch (e) { $('crmMsg').textContent = e.message; }
+}
+async function crmMessage(id) {
+  const text = prompt('Message to send (use {name} and {business}):');
+  if (!text || !text.trim()) return;
+  try {
+    await api(`/api/crm/contacts/${id}/message`, { method: 'POST', body: JSON.stringify({ text }) });
+    $('crmMsg').textContent = 'Message sent.';
+    setTimeout(() => ($('crmMsg').textContent = ''), 2500);
+  } catch (e) {
+    $('crmMsg').textContent = e.message;
+  }
+}
+async function crmBroadcast(stage, text) {
+  if (!text || !text.trim()) { $('crmMsg').textContent = 'Write a message first.'; return; }
+  if (!confirm(`Send this message to everyone in “${stageLabel(stage)}”?`)) return;
+  $('crmMsg').textContent = 'Sending…';
+  try {
+    const r = await api('/api/crm/broadcast', { method: 'POST', body: JSON.stringify({ stage, text }) });
+    $('crmMsg').textContent = `Sent to ${r.sent} of ${r.total} contact(s).`;
+    setTimeout(() => ($('crmMsg').textContent = ''), 4000);
+  } catch (e) {
+    $('crmMsg').textContent = e.message;
+  }
+}
+
+function saveCrmToggle() {
+  api('/api/settings', {
+    method: 'PUT',
+    body: JSON.stringify({ crmEnabled: $('crmEnabled').checked, crmAutoConvert: $('crmAutoConvert').checked }),
+  }).catch(() => {});
+}
+$('crmEnabled').onchange = saveCrmToggle;
+$('crmAutoConvert').onchange = saveCrmToggle;
+$('crmRefresh').onclick = () => loadCrm();
+$('crmSearch').oninput = (e) => {
+  crmState.search = e.target.value;
+  clearTimeout($('crmSearch')._t);
+  $('crmSearch')._t = setTimeout(loadCrm, 350);
+};
+$('crmSaveTemplates').onclick = async () => {
+  const templates = {};
+  document.querySelectorAll('#crmTemplateRows [data-tpl]').forEach((t) => { templates[t.dataset.tpl] = t.value; });
+  try {
+    await api('/api/settings', { method: 'PUT', body: JSON.stringify({ crmTemplates: templates }) });
+    crmState.templates = templates;
+    $('crmTemplateMsg').textContent = 'Saved.';
+    setTimeout(() => ($('crmTemplateMsg').textContent = ''), 2000);
+  } catch (e) {
+    $('crmTemplateMsg').textContent = e.message;
+  }
+};
 
 // ── Payment QR ───────────────────────────────────────────────────────────────
 async function loadPaymentQr() {

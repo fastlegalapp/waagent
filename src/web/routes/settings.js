@@ -138,6 +138,18 @@ router.put('/', async (req, res) => {
       b.businessHoursEnd === null ? null : Math.max(0, Math.min(23, b.businessHoursEnd));
   }
 
+  // CRM toggles + per-stage message templates.
+  if (typeof b.crmEnabled === 'boolean') patch.crm_enabled = b.crmEnabled;
+  if (typeof b.crmAutoConvert === 'boolean') patch.crm_auto_convert = b.crmAutoConvert;
+  if (b.crmTemplates && typeof b.crmTemplates === 'object') {
+    const allow = ['new', 'contacted', 'qualified', 'customer', 'lost'];
+    const clean = {};
+    for (const k of allow) {
+      if (typeof b.crmTemplates[k] === 'string') clean[k] = b.crmTemplates[k].slice(0, 1000);
+    }
+    patch.crm_templates = JSON.stringify(clean);
+  }
+
   // API keys: only update if provided. Empty string clears.
   if (typeof b.apiKey === 'string') {
     patch.anthropic_api_key_enc = b.apiKey.trim() ? encrypt(b.apiKey.trim()) : null;

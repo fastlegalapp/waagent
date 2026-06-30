@@ -131,6 +131,7 @@
             <button data-nav="persona">🗣️ Persona &amp; Instructions</button>
             <button data-nav="faqs">📋 Quick Answers</button>
             <button data-nav="lists">📦 Lists</button>
+            <button data-nav="crm">👥 CRM &amp; Leads</button>
             <button data-nav="payments">💳 Payments</button>
             <button data-nav="ai">🔑 AI Provider</button>
             <button data-nav="replies">⚙️ Replies &amp; Follow-ups</button>
@@ -243,6 +244,39 @@
                 </div>
               </details>
             </div>
+          </section>
+
+          <!-- CRM & LEADS (not part of the settings form) -->
+          <section class="panel hidden" data-panel="crm">
+            <h2>CRM &amp; Leads</h2>
+            <p class="muted">Everyone who messages you on WhatsApp is captured here as a lead and moves
+              through your pipeline. When they place or pay for an order, they’re converted to a
+              customer automatically. Message people by stage with templates tuned to your business.</p>
+
+            <div class="crm-toggles">
+              <label class="check"><input type="checkbox" id="crmEnabled" /> Automatically add leads from WhatsApp chats</label>
+              <label class="check"><input type="checkbox" id="crmAutoConvert" /> Auto-convert a lead to a customer when they order / pay</label>
+            </div>
+
+            <div id="crmPipeline" class="crm-pipeline"></div>
+
+            <div class="crm-controls">
+              <input type="search" id="crmSearch" placeholder="Search name, number or tag…" />
+              <button type="button" id="crmRefresh" class="ghost small">Refresh</button>
+            </div>
+
+            <div id="crmTable" class="items-table"></div>
+
+            <details class="crm-templates">
+              <summary>Stage messages — write once, send to a whole stage</summary>
+              <p class="hint">Use <code>{name}</code> for the contact’s name and <code>{business}</code> for your business name.</p>
+              <div id="crmTemplateRows"></div>
+              <div class="row">
+                <button type="button" id="crmSaveTemplates" class="primary">Save messages</button>
+                <span id="crmTemplateMsg" class="muted"></span>
+              </div>
+            </details>
+            <p id="crmMsg" class="muted"></p>
           </section>
 
           <!-- PAYMENTS (not part of the settings form) -->
