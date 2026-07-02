@@ -17,6 +17,7 @@ const logger = require('../logger');
 const userConfig = require('../services/userConfig');
 const mem = require('../db/messages');
 const agent = require('../agent/agent');
+const alerts = require('../services/alerts');
 const { handleMessage } = require('./handler');
 const {
   extractText,
@@ -480,6 +481,7 @@ async function connect(userId) {
           /* ignore */
         }
         logger.warn({ userId }, 'WhatsApp logged out — link removed');
+        alerts.disconnectAlert(userId, 'logged_out');
         return;
       }
 
@@ -492,6 +494,7 @@ async function connect(userId) {
           { userId, code, reason: reasonName(code), attempts },
           'giving up reconnecting — click Connect to retry',
         );
+        alerts.disconnectAlert(userId, 'closed');
         return;
       }
 

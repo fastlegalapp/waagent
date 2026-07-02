@@ -1703,7 +1703,15 @@ function renderWaState(st) {
   const showQr = st.status === 'qr' && st.qr;
   $('qrWrap').classList.toggle('hidden', !showQr);
   if (showQr) $('qrImg').src = st.qr;
+  // Dead-session banner: the agent silently not replying is the worst failure
+  // mode, so make it loud everywhere in the app.
+  $('waAlert').classList.toggle('hidden', !['closed', 'logged_out'].includes(st.status));
 }
+$('waAlertFix').onclick = async () => {
+  showPanel('connect');
+  renderWaState(await api('/api/wa/start', { method: 'POST' }));
+  startPolling();
+};
 async function refreshWa() {
   try { renderWaState(await api('/api/wa/status')); } catch (_) {}
 }
