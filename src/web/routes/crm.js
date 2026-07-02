@@ -3,6 +3,7 @@
 const express = require('express');
 const crm = require('../../db/crm');
 const billing = require('../../services/billing');
+const throttle = require('../../services/throttle');
 const settingsDb = require('../../db/settings');
 const manager = require('../../wa/sessionManager');
 const mem = require('../../db/messages');
@@ -115,9 +116,16 @@ router.post('/broadcast', async (req, res) => {
     const business = row && row.business_name;
     const contacts = (await crm.listContacts(req.userId, { stage, limit: BROADCAST_CAP })).slice(0, BROADCAST_CAP);
     let sent = 0;
+    let capped = null;
     for (const c of contacts) {
       const body = fillMessage(text, c, business);
       if (!body) continue;
+      // Anti-ban: respect the account's daily bulk cap and pace the sends.
+      // eslint-disable-next-line no-await-in-loop
+      const slot = await throttle.take(req.userId);
+      if (!slot.ok) { capped = slot.reason; break; }
+      // eslint-disable-next-line no-await-in-loop
+      await throttle.gate(req.userId);
       try {
         // eslint-disable-next-line no-await-in-loop
         if (await sendToContact(req.userId, c, body)) sent += 1;
@@ -125,7 +133,7 @@ router.post('/broadcast', async (req, res) => {
         /* keep going */
       }
     }
-    res.json({ ok: true, sent, total: contacts.length });
+    res.json({ ok: true, sent, total: contacts.length, capped });
   } catch (err) {
     fail(res, err, 'Could not send the broadcast.');
   }

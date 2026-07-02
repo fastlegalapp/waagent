@@ -2,6 +2,7 @@
 
 const lists = require('../db/lists');
 const settingsDb = require('../db/settings');
+const throttle = require('./throttle');
 const manager = require('../wa/sessionManager');
 const mem = require('../db/messages');
 const logger = require('../logger');
@@ -90,6 +91,15 @@ async function runForUser(userId) {
       const jid = jidFromPhone(item.fields[matchKey(item.fields, list.reminderPhoneField)]);
       if (!jid) continue;
       const body = fillTemplate(list.reminderTemplate, item.fields) || defaultMessage(list, daysUntil);
+      // Anti-ban: daily bulk cap + paced sends.
+      // eslint-disable-next-line no-await-in-loop
+      const slot = await throttle.take(userId);
+      if (!slot.ok) {
+        logger.warn({ userId, reason: slot.reason }, 'reminders stopped by bulk cap');
+        return;
+      }
+      // eslint-disable-next-line no-await-in-loop
+      await throttle.gate(userId);
       try {
         // eslint-disable-next-line no-await-in-loop
         const out = await manager.sendText(userId, jid, body);

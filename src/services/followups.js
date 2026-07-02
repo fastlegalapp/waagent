@@ -4,6 +4,7 @@ const mem = require('../db/messages');
 const settingsDb = require('../db/settings');
 const userConfig = require('../services/userConfig');
 const agent = require('../agent/agent');
+const throttle = require('./throttle');
 const manager = require('../wa/sessionManager');
 const logger = require('../logger');
 const { numberFromJid, numberInList } = require('../wa/message-utils');
@@ -52,6 +53,15 @@ async function runForUser(userId) {
         await mem.markFollowupDone(userId, chatId); // don't retry endlessly
         continue;
       }
+      // Anti-ban: follow-ups are bulk traffic — cap and pace them.
+      // eslint-disable-next-line no-await-in-loop
+      const slot = await throttle.take(userId);
+      if (!slot.ok) {
+        logger.warn({ userId, reason: slot.reason }, 'follow-ups stopped by bulk cap');
+        return;
+      }
+      // eslint-disable-next-line no-await-in-loop
+      await throttle.gate(userId);
       // eslint-disable-next-line no-await-in-loop
       const out = await manager.sendText(userId, chatId, text);
       // eslint-disable-next-line no-await-in-loop
