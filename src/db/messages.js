@@ -207,6 +207,59 @@ async function getFollowupCandidates(userId, beforeMs) {
   return rows.map((r) => r.chat_id);
 }
 
+// ── Inbox ────────────────────────────────────────────────────────────────────
+
+// Conversation list: one row per chat, newest first, with a preview of the last
+// message and the contact's CRM name when we have one.
+async function listChats(userId, limit = 60) {
+  const { rows } = await query(
+    `SELECT m.chat_id,
+            max(m.id) AS last_id,
+            count(*)::int AS message_count,
+            max(m.created_at) AS last_at,
+            (array_agg(m.content ORDER BY m.id DESC))[1] AS last_content,
+            (array_agg(m.role    ORDER BY m.id DESC))[1] AS last_role,
+            (array_agg(m.source  ORDER BY m.id DESC))[1] AS last_source,
+            max(c.name) AS crm_name,
+            max(c.stage) AS crm_stage
+       FROM messages m
+       LEFT JOIN crm_contacts c ON c.user_id = m.user_id AND c.chat_id = m.chat_id
+      WHERE m.user_id = $1
+      GROUP BY m.chat_id
+      ORDER BY max(m.id) DESC
+      LIMIT $2`,
+    [userId, Math.min(limit, 200)],
+  );
+  return rows.map((r) => ({
+    chatId: r.chat_id,
+    name: r.crm_name || '',
+    stage: r.crm_stage || '',
+    messageCount: r.message_count,
+    lastAt: r.last_at ? new Date(r.last_at).getTime() : null,
+    lastContent: (r.last_content || '').slice(0, 120),
+    lastRole: r.last_role,
+    lastSource: r.last_source,
+  }));
+}
+
+// Full thread for one chat (chronological, most recent `limit`).
+async function getThread(userId, chatId, limit = 150) {
+  const { rows } = await query(
+    `SELECT role, content, source, ts, created_at FROM (
+       SELECT * FROM messages
+        WHERE user_id = $1 AND chat_id = $2
+        ORDER BY id DESC LIMIT $3
+     ) recent ORDER BY id ASC`,
+    [userId, chatId, Math.min(limit, 500)],
+  );
+  return rows.map((r) => ({
+    role: r.role,
+    content: r.content,
+    source: r.source,
+    at: r.created_at ? new Date(r.created_at).getTime() : null,
+  }));
+}
+
 // Delete messages older than `days` so the table stays bounded over time.
 // Uses created_at (server insert time), which is always present and monotonic,
 // rather than the WhatsApp ts (which can be 0 for some imported rows). Returns
@@ -224,6 +277,8 @@ async function pruneOld(days) {
 module.exports = {
   appendMessage,
   appendMany,
+  listChats,
+  getThread,
   pruneOld,
   getOwnerSamples,
   getHistory,

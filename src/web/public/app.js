@@ -62,7 +62,7 @@ $('logoutBtn').onclick = async () => {
 
 // ── Sidebar nav ──────────────────────────────────────────────────────────────
 // Standalone panels live directly under .content; the rest live in #settingsForm.
-const STANDALONE_PANELS = ['overview', 'connect', 'lists', 'crm', 'payments', 'billing'];
+const STANDALONE_PANELS = ['overview', 'inbox', 'connect', 'lists', 'crm', 'payments', 'billing'];
 function showPanel(name) {
   document.querySelectorAll('.side-nav button').forEach((b) =>
     b.classList.toggle('active', b.dataset.nav === name),
@@ -76,6 +76,8 @@ function showPanel(name) {
     p.classList.toggle('hidden', p.dataset.panel !== name),
   );
   if (name === 'overview') loadOverview();
+  if (name === 'inbox') loadInbox();
+  if (name !== 'inbox') closeThread();
   if (name === 'lists') loadLists();
   if (name === 'crm') loadCrm();
   if (name === 'payments') loadPaymentQr();
@@ -1310,6 +1312,103 @@ $('qrRemoveBtn').onclick = async () => {
   if (!confirm('Remove the payment QR?')) return;
   await api('/api/settings', { method: 'PUT', body: JSON.stringify({ paymentQr: '' }) });
   loadPaymentQr();
+};
+
+// ── Inbox ────────────────────────────────────────────────────────────────────
+const inboxState = { chatId: null, timer: null };
+
+function chatDisplayName(c) {
+  if (c.name) return c.name;
+  const m = String(c.chatId).match(/^(\d{7,15})@/);
+  return m ? `+${m[1]}` : c.chatId;
+}
+
+function renderChatList(chats) {
+  const cont = $('chatList');
+  if (!chats.length) {
+    cont.innerHTML = '<p class="muted small">No conversations yet — they appear as soon as someone messages your WhatsApp.</p>';
+    return;
+  }
+  cont.innerHTML = chats.map((c) => {
+    const who = String(c.lastRole) === 'user' ? '' : (c.lastSource === 'owner' ? 'You: ' : 'Agent: ');
+    return `<button type="button" class="chat-item${c.chatId === inboxState.chatId ? ' active' : ''}" data-chat="${esc(c.chatId)}" data-name="${esc(chatDisplayName(c))}">
+      <span class="chat-name">${esc(chatDisplayName(c))}${c.stage ? ` <i class="chat-stage">${esc(c.stage)}</i>` : ''}</span>
+      <span class="chat-prev">${esc(who + c.lastContent)}</span>
+      <span class="chat-time">${timeAgo(c.lastAt)}</span>
+    </button>`;
+  }).join('');
+  cont.querySelectorAll('[data-chat]').forEach((b) => {
+    b.onclick = () => openThread(b.dataset.chat, b.dataset.name);
+  });
+}
+
+async function loadInbox() {
+  try {
+    const { chats } = await api('/api/inbox/chats');
+    renderChatList(chats);
+  } catch (e) {
+    $('inboxMsg').textContent = e.message;
+  }
+}
+
+function renderThread(messages) {
+  const cont = $('threadMsgs');
+  const nearBottom = cont.scrollHeight - cont.scrollTop - cont.clientHeight < 60;
+  cont.innerHTML = messages.map((m) => {
+    const mine = m.role === 'assistant';
+    const tag = mine ? (m.source === 'owner' ? 'You' : 'Agent') : '';
+    return `<div class="msg ${mine ? 'msg-out' : 'msg-in'}">
+      ${tag ? `<span class="msg-tag">${tag}</span>` : ''}
+      <span class="msg-body">${esc(m.content)}</span>
+      <span class="msg-time">${m.at ? new Date(m.at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}</span>
+    </div>`;
+  }).join('');
+  if (nearBottom || !cont.dataset.scrolled) cont.scrollTop = cont.scrollHeight;
+  cont.dataset.scrolled = '1';
+}
+
+async function refreshThread() {
+  if (!inboxState.chatId) return;
+  try {
+    const { messages } = await api(`/api/inbox/thread?chatId=${encodeURIComponent(inboxState.chatId)}`);
+    renderThread(messages);
+  } catch (_) {}
+}
+
+function openThread(chatId, name) {
+  inboxState.chatId = chatId;
+  $('threadName').textContent = name;
+  $('threadSub').textContent = chatId.replace(/@.*$/, '');
+  $('threadPane').classList.remove('hidden');
+  document.querySelector('.inbox').classList.add('thread-open');
+  delete $('threadMsgs').dataset.scrolled;
+  refreshThread();
+  loadInbox(); // re-highlight
+  clearInterval(inboxState.timer);
+  inboxState.timer = setInterval(refreshThread, 4000);
+}
+
+function closeThread() {
+  inboxState.chatId = null;
+  clearInterval(inboxState.timer);
+  inboxState.timer = null;
+  $('threadPane')?.classList.add('hidden');
+  document.querySelector('.inbox')?.classList.remove('thread-open');
+}
+$('threadBack').onclick = () => { closeThread(); loadInbox(); };
+
+$('threadForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const text = $('threadInput').value.trim();
+  if (!text || !inboxState.chatId) return;
+  $('threadInput').value = '';
+  try {
+    await api('/api/inbox/send', { method: 'POST', body: JSON.stringify({ chatId: inboxState.chatId, text }) });
+    await refreshThread();
+  } catch (err) {
+    $('inboxMsg').textContent = err.message;
+    setTimeout(() => ($('inboxMsg').textContent = ''), 4000);
+  }
 };
 
 // ── Billing (Razorpay) ───────────────────────────────────────────────────────

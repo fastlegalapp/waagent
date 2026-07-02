@@ -128,6 +128,7 @@
           <div class="brand"><span class="fl-mark">Fast</span>Legal</div>
           <nav class="side-nav">
             <button data-nav="overview">📊 Overview</button>
+            <button data-nav="inbox">💬 Inbox</button>
             <button data-nav="connect" class="active">📱 Connect</button>
             <button data-nav="persona">🗣️ Persona &amp; Instructions</button>
             <button data-nav="faqs">📋 Quick Answers</button>
@@ -171,6 +172,31 @@
             <div id="ovHours" class="ov-chart ov-hours" role="img" aria-label="Client messages by hour of day"></div>
             <details class="ov-table"><summary>View as table</summary><div id="ovHoursTable"></div></details>
             <p id="ovMsg" class="muted"></p>
+          </section>
+
+          <!-- INBOX (not part of the settings form) -->
+          <section class="panel hidden" data-panel="inbox">
+            <h2>Inbox</h2>
+            <p class="muted">Every conversation your agent is having. Open one to read it or jump in
+              yourself — your replies send from your WhatsApp.</p>
+            <div class="inbox">
+              <div id="chatList" class="chat-list"></div>
+              <div id="threadPane" class="thread-pane hidden">
+                <div class="thread-head">
+                  <button type="button" id="threadBack" class="ghost small">←</button>
+                  <div class="thread-who">
+                    <strong id="threadName"></strong>
+                    <span id="threadSub" class="muted small"></span>
+                  </div>
+                </div>
+                <div id="threadMsgs" class="thread-msgs"></div>
+                <form id="threadForm" class="thread-form">
+                  <input type="text" id="threadInput" placeholder="Type a reply…" autocomplete="off" />
+                  <button type="submit" class="primary">Send</button>
+                </form>
+              </div>
+            </div>
+            <p id="inboxMsg" class="muted"></p>
           </section>
 
           <!-- CONNECT (not part of the settings form) -->
