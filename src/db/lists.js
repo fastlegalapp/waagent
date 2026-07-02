@@ -64,12 +64,52 @@ async function deleteList(userId, listId) {
 
 async function listItems(userId, listId, limit = 500) {
   const { rows } = await query(
-    `SELECT id, fields, created_at FROM data_items
+    `SELECT id, fields, created_at, (photo <> '') AS has_photo FROM data_items
       WHERE list_id = $1 AND user_id = $2
       ORDER BY created_at ASC LIMIT $3`,
     [listId, userId, Math.min(limit, 2000)],
   );
-  return rows.map((r) => ({ id: r.id, fields: r.fields || {} }));
+  return rows.map((r) => ({ id: r.id, fields: r.fields || {}, hasPhoto: r.has_photo === true }));
+}
+
+// Attach / replace / clear ('' clears) an uploaded photo on one row.
+async function setItemPhoto(userId, itemId, dataUrl) {
+  const { rowCount } = await query(
+    `UPDATE data_items SET photo = $3 WHERE id = $1 AND user_id = $2`,
+    [itemId, userId, String(dataUrl || '')],
+  );
+  return rowCount > 0;
+}
+
+async function getItemPhoto(userId, itemId) {
+  const { rows } = await query(
+    `SELECT photo FROM data_items WHERE id = $1 AND user_id = $2`,
+    [itemId, userId],
+  );
+  return rows[0] && rows[0].photo ? rows[0].photo : null;
+}
+
+// Best matching row that HAS an uploaded photo, for the agent's send_photo.
+async function findPhoto(userId, queryText) {
+  const terms = String(queryText || '')
+    .toLowerCase()
+    .match(/[\p{L}\p{N}]{2,}/gu);
+  if (!terms || terms.length === 0) return null;
+  const tsq = Array.from(new Set(terms)).join(' | ');
+  try {
+    const { rows } = await query(
+      `SELECT i.photo, i.fields
+         FROM data_items i
+        WHERE i.user_id = $1 AND i.photo <> ''
+          AND to_tsvector('simple', i.fields::text) @@ to_tsquery('simple', $2)
+        ORDER BY ts_rank(to_tsvector('simple', i.fields::text), to_tsquery('simple', $2)) DESC
+        LIMIT 1`,
+      [userId, tsq],
+    );
+    return rows[0] ? { photo: rows[0].photo, fields: rows[0].fields || {} } : null;
+  } catch (_) {
+    return null;
+  }
 }
 
 // rows: array of plain objects {field: value}. Returns count inserted.
@@ -294,6 +334,9 @@ module.exports = {
   addItems,
   deleteItem,
   clearItems,
+  setItemPhoto,
+  getItemPhoto,
+  findPhoto,
   getDirectory,
   searchItems,
   recordOrder,

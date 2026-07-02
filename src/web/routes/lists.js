@@ -85,6 +85,35 @@ router.post('/:id/items', async (req, res) => {
   }
 });
 
+// Upload (or clear, with photo:'') a product photo for one row. Stored like the
+// payment QR: a small data-URL image, sent to clients when they ask to see it.
+router.put('/:id/items/:itemId/photo', async (req, res) => {
+  const v = String(req.body?.photo || '').trim();
+  if (v !== '') {
+    if (!/^data:image\/(png|jpe?g|webp);base64,/i.test(v)) {
+      return res.status(400).json({ error: 'Photo must be a PNG, JPG or WebP image.' });
+    }
+    if (v.length > 1900000) {
+      return res.status(400).json({ error: 'Photo is too large — keep it under ~1.3MB.' });
+    }
+  }
+  try {
+    const ok = await lists.setItemPhoto(req.userId, req.params.itemId, v);
+    if (!ok) return res.status(404).json({ error: 'Row not found.' });
+    res.json({ ok: true });
+  } catch (err) {
+    fail(res, err, 'Could not save the photo.');
+  }
+});
+
+router.get('/:id/items/:itemId/photo', async (req, res) => {
+  try {
+    res.json({ photo: await lists.getItemPhoto(req.userId, req.params.itemId) });
+  } catch (err) {
+    fail(res, err, 'Could not load the photo.');
+  }
+});
+
 router.delete('/:id/items/:itemId', async (req, res) => {
   try {
     await lists.deleteItem(req.userId, req.params.itemId);

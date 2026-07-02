@@ -332,13 +332,22 @@ async function runTool(name, input, settings, actions = {}) {
   }
   if (name === 'send_photo') {
     try {
+      if (!actions.sendImage) return JSON.stringify({ sent: false, reason: 'cannot send right now' });
+      // Prefer an image URL in the row's fields; fall back to a photo the owner
+      // uploaded on the row itself.
       const matches = await lists.searchItems(settings.userId, input.query, 6);
       const hit = matches.map((m) => m.fields).find((f) => imageUrlOf(f));
       const url = hit ? imageUrlOf(hit) : null;
-      if (!url) return JSON.stringify({ sent: false, reason: 'no photo on file for that item' });
-      if (!actions.sendImage) return JSON.stringify({ sent: false, reason: 'cannot send right now' });
-      await actions.sendImage({ url }, input.caption || '');
-      return JSON.stringify({ sent: true });
+      if (url) {
+        await actions.sendImage({ url }, input.caption || '');
+        return JSON.stringify({ sent: true });
+      }
+      const uploaded = await lists.findPhoto(settings.userId, input.query);
+      if (uploaded) {
+        await actions.sendImage({ base64: uploaded.photo }, input.caption || '');
+        return JSON.stringify({ sent: true });
+      }
+      return JSON.stringify({ sent: false, reason: 'no photo on file for that item' });
     } catch (err) {
       return JSON.stringify({ sent: false, reason: 'photo send failed' });
     }

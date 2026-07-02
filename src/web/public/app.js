@@ -342,17 +342,28 @@ function renderItems(items) {
     cont.innerHTML = '<p class="muted small">No rows yet — add one below, or paste a CSV.</p>';
     return;
   }
-  const head = '<tr>' + cols.map((c) => `<th>${esc(c)}</th>`).join('') + '<th></th></tr>';
+  const head = '<tr>' + cols.map((c) => `<th>${esc(c)}</th>`).join('') + '<th>photo</th><th></th></tr>';
   const rows = items
     .map(
       (it) =>
         '<tr>' +
         cols.map((c) => `<td>${esc(it.fields[c] ?? '')}</td>`).join('') +
+        `<td class="item-photo-cell">
+           <button class="ghost small" data-photo="${it.id}" title="${it.hasPhoto ? 'Replace the photo' : 'Add a photo — sent when a customer asks to see this item'}">${it.hasPhoto ? '🖼️' : '📷+'}</button>
+           ${it.hasPhoto ? `<button class="faq-del" data-photodel="${it.id}" title="Remove photo">✕</button>` : ''}
+         </td>` +
         `<td><button class="faq-del" data-del="${it.id}">✕</button></td></tr>`,
     )
     .join('');
   cont.innerHTML = `<table class="data-table">${head}${rows}</table>`;
   cont.querySelectorAll('[data-del]').forEach((b) => { b.onclick = () => deleteItem(b.dataset.del); });
+  cont.querySelectorAll('[data-photo]').forEach((b) => { b.onclick = () => pickItemPhoto(b.dataset.photo); });
+  cont.querySelectorAll('[data-photodel]').forEach((b) => {
+    b.onclick = async () => {
+      await api(`/api/lists/${currentListId}/items/${b.dataset.photodel}/photo`, { method: 'PUT', body: JSON.stringify({ photo: '' }) });
+      loadItems();
+    };
+  });
 }
 
 // Build a "name: [value]" field row for the add-row form. `name` is the column;
@@ -1009,6 +1020,36 @@ $('addRowsBtn').onclick = async () => {
     $('csvResult').textContent = e.message;
   }
 };
+// Photo upload for a list row: file picker → data URL → PUT. Same size/type
+// rules as the payment QR.
+function pickItemPhoto(itemId) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/png,image/jpeg,image/webp';
+  input.onchange = () => {
+    const file = input.files[0];
+    if (!file) return;
+    if (!/^image\/(png|jpe?g|webp)$/i.test(file.type)) { $('csvResult').textContent = 'Use a PNG, JPG or WebP image.'; return; }
+    if (file.size > 1300000) { $('csvResult').textContent = 'Photo too large (max ~1.3MB).'; return; }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        await api(`/api/lists/${currentListId}/items/${itemId}/photo`, {
+          method: 'PUT',
+          body: JSON.stringify({ photo: reader.result }),
+        });
+        $('csvResult').textContent = 'Photo saved.';
+        setTimeout(() => ($('csvResult').textContent = ''), 2000);
+        loadItems();
+      } catch (e) {
+        $('csvResult').textContent = e.message;
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+
 async function deleteItem(itemId) {
   await api(`/api/lists/${currentListId}/items/${itemId}`, { method: 'DELETE' });
   await loadItems();
