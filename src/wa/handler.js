@@ -5,10 +5,12 @@ const mem = require('../db/messages');
 const crm = require('../db/crm');
 const billing = require('../services/billing');
 const agent = require('../agent/agent');
+const transcribe = require('../services/transcribe');
 const {
   extractText,
   messageType,
   imageNode,
+  audioNode,
   numberFromJid,
   numberInList,
   phoneJid,
@@ -79,11 +81,13 @@ async function handleMessage({ userId, settings, msg, send, sendImage, downloadM
   if (!msg.message) {
     return mark(`no_content:${msg.messageStubType ? `stub_${msg.messageStubType}` : 'decrypt_failed'}`);
   }
-  // Images (e.g. payment screenshots) are handled too — the agent can "see" them.
+  // Images (e.g. payment screenshots) and voice notes are handled too — the
+  // agent can "see" photos and "hear" audio (when transcription is configured).
   const img = imageNode(msg.message);
+  const audio = audioNode(msg.message);
   const text = extractText(msg.message); // caption for images, body for text
-  if (!text && !img) return mark(`no_text:${messageType(msg.message)}`);
-  const effectiveText = text || '📷 [photo]';
+  if (!text && !img && !audio) return mark(`no_text:${messageType(msg.message)}`);
+  const effectiveText = text || (audio ? '🎤 [voice note]' : '📷 [photo]');
 
   // Resolve the client's real mobile-number JID (handles WhatsApp "LID"
   // addressing) so replies and the allow/block list use the phone number, not
@@ -155,6 +159,7 @@ async function handleMessage({ userId, settings, msg, send, sendImage, downloadM
     text: effectiveText,
     caption: text,
     imageMsg: img ? msg : null,
+    audioMsg: audio ? msg : null,
     send, sendImage, downloadMedia, notifyOwner, typing, note,
   };
   const timer = setTimeout(() => {
@@ -175,7 +180,7 @@ async function handleMessage({ userId, settings, msg, send, sendImage, downloadM
 // Produce and send one reply for a chat, using the full stored history as
 // context. Runs after the gather window, so the client's whole burst is already
 // persisted and visible to the agent.
-async function respond({ userId, settings, remoteJid, chatKey, number, clientJid, clientName, text, caption, imageMsg, send, sendImage, downloadMedia, notifyOwner, typing, note }) {
+async function respond({ userId, settings, remoteJid, chatKey, number, clientJid, clientName, text, caption, imageMsg, audioMsg, send, sendImage, downloadMedia, notifyOwner, typing, note }) {
   const showTyping = typing || (async () => {});
   const mark = (status) => {
     try {
@@ -280,6 +285,28 @@ async function respond({ userId, settings, remoteJid, chatKey, number, clientJid
     decideText = desc
       ? `${cap}[The client sent an image. What it shows: ${desc}]`
       : `${cap}[The client sent an image/screenshot you can't view. If they're claiming payment, ask for the amount and transaction id, or say you'll verify it.]`;
+  }
+  // Voice note → transcribe it ("hear" it) and answer the spoken words.
+  if (audioMsg && downloadMedia) {
+    let transcript = null;
+    if (transcribe.available()) {
+      try {
+        const media = await downloadMedia(audioMsg);
+        if (media) transcript = await transcribe.transcribe(media);
+      } catch (err) {
+        logger.error({ err: err.message, userId }, 'voice note transcription failed');
+      }
+    }
+    decideText = transcript
+      ? `[The client sent a voice note. What they said: "${transcript}"]`
+      : `[The client sent a voice note you can't listen to. Politely ask them to type their message instead.]`;
+    // Store the transcript so the conversation history keeps what was said.
+    if (transcript) {
+      mem.appendMessage(userId, chatKey, 'user', `🎤 ${transcript}`, {
+        ts: Math.floor(Date.now() / 1000),
+        source: 'client',
+      }).catch(() => {});
+    }
   }
   let outcome;
   try {

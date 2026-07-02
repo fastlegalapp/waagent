@@ -63,6 +63,12 @@ function imageNode(message) {
   return m && m.imageMessage ? m.imageMessage : null;
 }
 
+// Voice notes / audio messages (ptt = push-to-talk voice note).
+function audioNode(message) {
+  const m = unwrap(message);
+  return m && m.audioMessage ? m.audioMessage : null;
+}
+
 function numberFromJid(jid) {
   return (jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
 }
@@ -117,6 +123,7 @@ module.exports = {
   extractText,
   messageType,
   imageNode,
+  audioNode,
   quotedId,
   quotedText,
   numberFromJid,

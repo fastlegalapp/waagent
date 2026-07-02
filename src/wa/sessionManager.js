@@ -281,10 +281,12 @@ async function connect(userId) {
         { logger: baileysLogger, reuploadRequest: sock.updateMediaMessage },
       );
       if (!buf || !buf.length) return null;
-      const node =
-        m?.message?.imageMessage ||
-        m?.message?.ephemeralMessage?.message?.imageMessage ||
-        m?.message?.viewOnceMessageV2?.message?.imageMessage;
+      const inner =
+        m?.message?.ephemeralMessage?.message ||
+        m?.message?.viewOnceMessageV2?.message ||
+        m?.message ||
+        {};
+      const node = inner.imageMessage || inner.audioMessage || m?.message?.imageMessage;
       const mime = (node && node.mimetype) || 'image/jpeg';
       return { base64: buf.toString('base64'), mime };
     } catch (err) {
