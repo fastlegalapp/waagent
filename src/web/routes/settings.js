@@ -138,6 +138,10 @@ router.put('/', async (req, res) => {
       b.businessHoursEnd === null ? null : Math.max(0, Math.min(23, b.businessHoursEnd));
   }
 
+  // Outbound webhook (integrations). Empty string clears.
+  if (typeof b.webhookUrl === 'string') patch.webhook_url = b.webhookUrl.trim().slice(0, 500);
+  if (typeof b.webhookSecret === 'string') patch.webhook_secret = b.webhookSecret.trim().slice(0, 200);
+
   // CRM toggles + per-stage message templates.
   if (typeof b.crmEnabled === 'boolean') patch.crm_enabled = b.crmEnabled;
   if (typeof b.crmAutoConvert === 'boolean') patch.crm_auto_convert = b.crmAutoConvert;

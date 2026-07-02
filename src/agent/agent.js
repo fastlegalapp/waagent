@@ -6,6 +6,7 @@ const logger = require('../logger');
 const drive = require('./tools/drive');
 const lists = require('../db/lists');
 const crm = require('../db/crm');
+const webhooks = require('../services/webhooks');
 const settingsDb = require('../db/settings');
 
 // Pull an image URL out of a list row's fields (an image/photo column, or any
@@ -376,6 +377,7 @@ async function runTool(name, input, settings, actions = {}) {
       if (settings.crm?.autoConvert !== false && actions.customerNumber) {
         crm.convertToCustomer(settings.userId, actions.customerNumber, { value: input.total }).catch(() => {});
       }
+      webhooks.fire(settings.userId, 'order.created', saved);
       return JSON.stringify({ recorded: true, order: saved });
     } catch (err) {
       return JSON.stringify({ recorded: false, reason: 'could not record the order' });
@@ -390,6 +392,7 @@ async function runTool(name, input, settings, actions = {}) {
         const total = order.fields && order.fields.total;
         crm.convertToCustomer(settings.userId, actions.customerNumber, { value: total }).catch(() => {});
       }
+      webhooks.fire(settings.userId, 'order.paid', order.fields);
       if (actions.notifyOwner) {
         const what = order.fields && order.fields.items ? ` for: ${order.fields.items}` : '';
         await actions.notifyOwner(

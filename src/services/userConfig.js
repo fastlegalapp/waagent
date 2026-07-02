@@ -134,6 +134,8 @@ async function sanitize(userId) {
     crmEnabled: row.crm_enabled !== false,
     crmAutoConvert: row.crm_auto_convert !== false,
     crmTemplates: parseCrmTemplates(row.crm_templates),
+    webhookUrl: row.webhook_url || '',
+    hasWebhookSecret: !!(row.webhook_secret && row.webhook_secret.length),
   };
 }
 

@@ -4,6 +4,7 @@ const logger = require('../logger');
 const mem = require('../db/messages');
 const crm = require('../db/crm');
 const billing = require('../services/billing');
+const webhooks = require('../services/webhooks');
 const agent = require('../agent/agent');
 const transcribe = require('../services/transcribe');
 const {
@@ -123,7 +124,14 @@ async function handleMessage({ userId, settings, msg, send, sendImage, downloadM
   // every inbound 1:1 message regardless of reply mode, so leads are recorded
   // even when auto-reply is off. Best-effort — never blocks handling.
   if (settings.crm?.enabled !== false && !isGroup(remoteJid)) {
-    crm.recordInbound(userId, { phone: number, chatId: chatKey, name: clientName }).catch(() => {});
+    crm.recordInbound(userId, { phone: number, chatId: chatKey, name: clientName })
+      .then((c) => {
+        // First message from this person → a brand-new lead.
+        if (c && c.msgCount === 1) {
+          webhooks.fire(userId, 'lead.created', { phone: c.phone, name: c.name });
+        }
+      })
+      .catch(() => {});
   }
 
   if (settings.reply.mode === 'off') return mark('mode_off'); // logging only

@@ -226,6 +226,11 @@ function fillSettings(s) {
   $('replyDelayMax').value = s.replyDelayMax ?? 6;
   $('followupsEnabled').checked = s.followupsEnabled === true;
   $('followupsHours').value = s.followupsHours ?? 24;
+  $('webhookUrl').value = s.webhookUrl || '';
+  $('webhookSecret').value = '';
+  $('webhookSecret').placeholder = s.hasWebhookSecret
+    ? 'A secret is set — leave blank to keep it'
+    : 'e.g. a long random string';
   $('businessHoursStart').value = s.businessHoursStart ?? '';
   $('businessHoursEnd').value = s.businessHoursEnd ?? '';
   $('apiKey').value = '';
@@ -268,6 +273,7 @@ $('settingsForm').onsubmit = async (e) => {
     replyDelayMax: intOrNull($('replyDelayMax').value) ?? 6,
     followupsEnabled: $('followupsEnabled').checked,
     followupsHours: intOrNull($('followupsHours').value) ?? 24,
+    webhookUrl: $('webhookUrl').value.trim(),
     businessHoursStart: intOrNull($('businessHoursStart').value),
     businessHoursEnd: intOrNull($('businessHoursEnd').value),
   };
@@ -275,6 +281,8 @@ $('settingsForm').onsubmit = async (e) => {
   if (key) payload.apiKey = key;
   const dsKey = $('deepseekApiKey').value.trim();
   if (dsKey) payload.deepseekApiKey = dsKey;
+  const whSecret = $('webhookSecret').value.trim();
+  if (whSecret) payload.webhookSecret = whSecret;
 
   try {
     const { settings } = await api('/api/settings', { method: 'PUT', body: JSON.stringify(payload) });
@@ -1343,6 +1351,11 @@ function saveCrmToggle() {
 $('crmEnabled').onchange = saveCrmToggle;
 $('crmAutoConvert').onchange = saveCrmToggle;
 $('crmRefresh').onclick = () => loadCrm();
+$('crmExport').onclick = () => { window.location.href = '/api/export/crm.csv'; };
+$('ordExport').onclick = () => { window.location.href = '/api/export/orders.csv'; };
+$('listExport').onclick = () => {
+  if (currentListId) window.location.href = `/api/export/lists/${currentListId}.csv`;
+};
 $('crmSearch').oninput = (e) => {
   crmState.search = e.target.value;
   clearTimeout($('crmSearch')._t);

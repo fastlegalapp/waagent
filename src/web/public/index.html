@@ -261,6 +261,7 @@
             <div id="listEditor" class="list-editor hidden">
               <div class="list-editor-head">
                 <input type="text" id="listName" class="list-name" />
+                <button type="button" id="listExport" class="ghost" title="Download this list as CSV">⬇ CSV</button>
                 <button type="button" id="deleteListBtn" class="danger">Delete</button>
               </div>
               <label>Instructions for the agent — how to use this list
@@ -338,6 +339,7 @@
             <div class="crm-controls">
               <input type="search" id="crmSearch" placeholder="Search name, number or tag…" />
               <button type="button" id="crmRefresh" class="ghost small">Refresh</button>
+              <button type="button" id="crmExport" class="ghost small" title="Download all contacts as CSV">⬇ CSV</button>
             </div>
 
             <div id="crmTable" class="items-table"></div>
@@ -360,8 +362,11 @@
             <p class="muted">Orders your agent has taken. Move them along —
               <strong>new → confirmed → paid → ready → delivered</strong> — and the client is
               messaged automatically at each step.</p>
-            <label class="check"><input type="checkbox" id="ordNotify" checked />
-              Message the client on WhatsApp when I change a status</label>
+            <div class="row" style="margin-top: 0;">
+              <label class="check"><input type="checkbox" id="ordNotify" checked />
+                Message the client on WhatsApp when I change a status</label>
+              <button type="button" id="ordExport" class="ghost small" title="Download all orders as CSV">⬇ CSV</button>
+            </div>
             <div id="ordersTable" class="items-table"></div>
             <p id="ordersMsg" class="muted"></p>
           </section>
@@ -582,6 +587,18 @@
                   <input type="number" id="followupsHours" min="1" max="720" />
                 </label>
                 <p class="hint">When you replied last and the client hasn't answered in this many hours, the agent sends one gentle, natural nudge in your style.</p>
+              </fieldset>
+
+              <fieldset>
+                <legend>Integrations (optional)</legend>
+                <label>Webhook URL — we POST here on new lead / new order / order paid
+                  <input type="url" id="webhookUrl" placeholder="https://your-server.com/hooks/fastlegal" />
+                </label>
+                <label>Webhook secret — requests are signed with this (X-FastLegal-Signature)
+                  <input type="text" id="webhookSecret" placeholder="leave blank to keep the current one" />
+                </label>
+                <p class="hint">Connect FastLegal to Google Sheets (via Apps Script), Zapier/Make, Tally
+                  bridges or your own tools. Payload: <code>{"event","data","ts"}</code>.</p>
               </fieldset>
             </section>
 

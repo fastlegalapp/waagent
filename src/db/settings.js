@@ -30,6 +30,8 @@ const UPDATABLE = new Set([
   'crm_enabled',
   'crm_auto_convert',
   'crm_templates',
+  'webhook_url',
+  'webhook_secret',
 ]);
 
 async function getRaw(userId) {
