@@ -3,6 +3,7 @@
 const lists = require('../db/lists');
 const settingsDb = require('../db/settings');
 const throttle = require('./throttle');
+const audit = require('../db/audit');
 const manager = require('../wa/sessionManager');
 const mem = require('../db/messages');
 const logger = require('../logger');
@@ -106,6 +107,7 @@ async function runForUser(userId) {
         // eslint-disable-next-line no-await-in-loop
         await lists.markReminded(item.id);
         if (out) {
+          audit.log(userId, { chatId: jid, phone: jid.split('@')[0], action: 'reminder_sent', detail: `${list.name}: ${body.slice(0, 150)}` });
           mem
             .appendMessage(userId, jid, 'assistant', body, {
               waMsgId: out?.key?.id,

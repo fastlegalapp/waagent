@@ -6,6 +6,7 @@ const { migrate } = require('./db/migrate');
 const { listen } = require('./web/server');
 const users = require('./db/users');
 const mem = require('./db/messages');
+const audit = require('./db/audit');
 const manager = require('./wa/sessionManager');
 const styleLearner = require('./services/styleLearner');
 const followups = require('./services/followups');
@@ -53,6 +54,9 @@ async function migrateThenResume() {
         if (removed) logger.info({ removed, days: config.messageRetentionDays }, 'pruned old messages');
       })
       .catch((err) => logger.warn({ err: err.message }, 'message prune failed'));
+    audit
+      .pruneOld(config.messageRetentionDays)
+      .catch((err) => logger.warn({ err: err.message }, 'audit prune failed'));
   };
   prune();
   setInterval(prune, DAY_MS).unref?.();

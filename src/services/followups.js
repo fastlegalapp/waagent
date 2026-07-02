@@ -5,6 +5,7 @@ const settingsDb = require('../db/settings');
 const userConfig = require('../services/userConfig');
 const agent = require('../agent/agent');
 const throttle = require('./throttle');
+const audit = require('../db/audit');
 const manager = require('../wa/sessionManager');
 const logger = require('../logger');
 const { numberFromJid, numberInList } = require('../wa/message-utils');
@@ -67,6 +68,7 @@ async function runForUser(userId) {
       // eslint-disable-next-line no-await-in-loop
       await mem.markFollowupDone(userId, chatId);
       if (out) {
+        audit.log(userId, { chatId, phone: numberFromJid(chatId), action: 'followup_sent', detail: text.slice(0, 200) });
         // eslint-disable-next-line no-await-in-loop
         await mem.appendMessage(userId, chatId, 'assistant', text, {
           waMsgId: out?.key?.id,

@@ -138,6 +138,19 @@ CREATE TABLE IF NOT EXISTS billing_payments (
 );
 CREATE INDEX IF NOT EXISTS billing_payments_user_idx ON billing_payments (user_id);
 
+-- Audit log: what the agent did and why ("why did it say that?"). Pruned with
+-- the message-retention job.
+CREATE TABLE IF NOT EXISTS audit_log (
+  id         BIGSERIAL PRIMARY KEY,
+  user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  chat_id    TEXT NOT NULL DEFAULT '',
+  phone      TEXT NOT NULL DEFAULT '',
+  action     TEXT NOT NULL,               -- replied|escalated|ignored|order_recorded|order_paid|qr_sent|photo_sent|reminder_sent|followup_sent|owner_replied|paused|resumed|status_notified|converted
+  detail     TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS audit_log_user_idx ON audit_log (user_id, id DESC);
+
 -- Last-reply timestamps for per-chat rate limiting.
 CREATE TABLE IF NOT EXISTS chat_state (
   user_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,

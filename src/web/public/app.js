@@ -1180,8 +1180,43 @@ async function loadOverview() {
   ].join('');
   renderDaily(d.daily || []);
   renderHours(d.hours || []);
+  loadActivity();
 }
 $('ovDays').onchange = () => loadOverview();
+
+const AUDIT_LABELS = {
+  replied: ['💬', 'Replied'],
+  escalated: ['🔔', 'Escalated to you'],
+  ignored: ['🚫', 'Chose not to reply'],
+  order_recorded: ['🧾', 'Order taken'],
+  order_paid: ['💰', 'Order marked paid'],
+  qr_sent: ['📲', 'Payment QR sent'],
+  photo_sent: ['🖼️', 'Product photo sent'],
+  reminder_sent: ['⏰', 'Reminder sent'],
+  followup_sent: ['👋', 'Follow-up sent'],
+  owner_replied: ['🧑‍💼', 'You replied (dashboard)'],
+  paused: ['⏸', 'Agent paused'],
+  resumed: ['▶️', 'Agent resumed'],
+  status_notified: ['📦', 'Order status updated'],
+};
+async function loadActivity() {
+  let events = [];
+  try { ({ events } = await api('/api/audit?limit=30')); } catch (_) { return; }
+  const cont = $('ovActivity');
+  if (!events.length) {
+    cont.innerHTML = '<p class="muted small">Nothing yet — actions appear here as the agent works.</p>';
+    return;
+  }
+  cont.innerHTML = events.map((e) => {
+    const [icon, label] = AUDIT_LABELS[e.action] || ['•', e.action];
+    return `<div class="act-row">
+      <span class="act-ic">${icon}</span>
+      <span class="act-main"><strong>${label}</strong>${e.phone ? ` · +${esc(e.phone)}` : ''}
+        ${e.detail ? `<span class="act-detail">${esc(e.detail)}</span>` : ''}</span>
+      <span class="act-time">${timeAgo(e.at)}</span>
+    </div>`;
+  }).join('');
+}
 
 // ── CRM & Leads ──────────────────────────────────────────────────────────────
 const CRM_STAGES = [

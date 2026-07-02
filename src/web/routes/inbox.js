@@ -2,6 +2,7 @@
 
 const express = require('express');
 const mem = require('../../db/messages');
+const audit = require('../../db/audit');
 const manager = require('../../wa/sessionManager');
 const { requireAuth } = require('../../auth/session');
 const logger = require('../../logger');
@@ -41,6 +42,12 @@ router.post('/pause', async (req, res) => {
   try {
     const until = minutes > 0 ? Date.now() + minutes * 60000 : 0;
     await mem.setPaused(req.userId, chatId, until);
+    audit.log(req.userId, {
+      chatId,
+      phone: chatId.split('@')[0],
+      action: minutes > 0 ? 'paused' : 'resumed',
+      detail: minutes > 0 ? `${minutes} min` : '',
+    });
     res.json({ ok: true, pausedUntil: until });
   } catch (err) {
     logger.error({ err: err.message, userId: req.userId }, 'inbox pause failed');
@@ -76,6 +83,12 @@ router.post('/send', async (req, res) => {
     } catch (_) {
       /* best-effort */
     }
+    audit.log(req.userId, {
+      chatId,
+      phone: chatId.split('@')[0],
+      action: 'owner_replied',
+      detail: text.slice(0, 200),
+    });
     res.json({ ok: true, pausedUntil });
   } catch (err) {
     logger.error({ err: err.message, userId: req.userId }, 'inbox send failed');

@@ -2,6 +2,7 @@
 
 const express = require('express');
 const lists = require('../../db/lists');
+const audit = require('../../db/audit');
 const settingsDb = require('../../db/settings');
 const manager = require('../../wa/sessionManager');
 const mem = require('../../db/messages');
@@ -68,6 +69,11 @@ router.post('/:itemId/status', async (req, res) => {
         logger.warn({ err: err.message, userId: req.userId }, 'order status notify failed');
       }
     }
+    audit.log(req.userId, {
+      phone: digits,
+      action: 'status_notified',
+      detail: `${status}${notified ? ' (client messaged)' : ''} — ${String(order.fields.items || '').slice(0, 120)}`,
+    });
     res.json({ ok: true, order, notified });
   } catch (err) {
     logger.error({ err: err.message, userId: req.userId }, 'order status update failed');

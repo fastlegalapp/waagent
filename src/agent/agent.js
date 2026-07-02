@@ -6,6 +6,7 @@ const logger = require('../logger');
 const drive = require('./tools/drive');
 const lists = require('../db/lists');
 const crm = require('../db/crm');
+const audit = require('../db/audit');
 const webhooks = require('../services/webhooks');
 const settingsDb = require('../db/settings');
 
@@ -341,11 +342,13 @@ async function runTool(name, input, settings, actions = {}) {
       const url = hit ? imageUrlOf(hit) : null;
       if (url) {
         await actions.sendImage({ url }, input.caption || '');
+        audit.log(settings.userId, { phone: actions.customerNumber, action: 'photo_sent', detail: input.query });
         return JSON.stringify({ sent: true });
       }
       const uploaded = await lists.findPhoto(settings.userId, input.query);
       if (uploaded) {
         await actions.sendImage({ base64: uploaded.photo }, input.caption || '');
+        audit.log(settings.userId, { phone: actions.customerNumber, action: 'photo_sent', detail: input.query });
         return JSON.stringify({ sent: true });
       }
       return JSON.stringify({ sent: false, reason: 'no photo on file for that item' });
@@ -360,6 +363,7 @@ async function runTool(name, input, settings, actions = {}) {
       if (!qr) return JSON.stringify({ sent: false, reason: 'owner has not set a payment QR' });
       if (!actions.sendImage) return JSON.stringify({ sent: false, reason: 'cannot send right now' });
       await actions.sendImage({ base64: qr }, input.caption || 'Scan this QR to pay 🙏');
+      audit.log(settings.userId, { phone: actions.customerNumber, action: 'qr_sent', detail: input.caption || '' });
       return JSON.stringify({ sent: true });
     } catch (err) {
       return JSON.stringify({ sent: false, reason: 'qr send failed' });
@@ -378,6 +382,11 @@ async function runTool(name, input, settings, actions = {}) {
         crm.convertToCustomer(settings.userId, actions.customerNumber, { value: input.total }).catch(() => {});
       }
       webhooks.fire(settings.userId, 'order.created', saved);
+      audit.log(settings.userId, {
+        phone: actions.customerNumber,
+        action: 'order_recorded',
+        detail: `${saved.items}${saved.total ? ` — ${saved.total}` : ''}`,
+      });
       return JSON.stringify({ recorded: true, order: saved });
     } catch (err) {
       return JSON.stringify({ recorded: false, reason: 'could not record the order' });
@@ -393,6 +402,11 @@ async function runTool(name, input, settings, actions = {}) {
         crm.convertToCustomer(settings.userId, actions.customerNumber, { value: total }).catch(() => {});
       }
       webhooks.fire(settings.userId, 'order.paid', order.fields);
+      audit.log(settings.userId, {
+        phone: actions.customerNumber,
+        action: 'order_paid',
+        detail: `${order.fields.items || ''}${input.note ? ` (${input.note})` : ''}`,
+      });
       if (actions.notifyOwner) {
         const what = order.fields && order.fields.items ? ` for: ${order.fields.items}` : '';
         await actions.notifyOwner(

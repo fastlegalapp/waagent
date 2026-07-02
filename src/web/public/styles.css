@@ -333,6 +333,13 @@ legend { color: var(--muted); font-size: 13px; padding: 0 6px; font-weight: 600;
 .ov-table { margin: 8px 0 4px; }
 .ov-table summary { cursor: pointer; font-size: 12px; color: var(--muted); font-weight: 600; }
 .ov-table .data-table { margin-top: 6px; }
+.ov-activity { border: 1px solid var(--line); border-radius: 10px; background: #fff; max-height: 320px; overflow-y: auto; }
+.act-row { display: flex; align-items: baseline; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.act-row:last-child { border-bottom: none; }
+.act-ic { flex-shrink: 0; }
+.act-main { flex: 1; min-width: 0; }
+.act-detail { display: block; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.act-time { flex-shrink: 0; color: var(--muted); font-size: 11.5px; }
 
 /* Inbox */
 .inbox { display: grid; grid-template-columns: 260px 1fr; gap: 14px; margin-top: 12px; min-height: 420px; }

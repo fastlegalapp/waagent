@@ -3,6 +3,7 @@
 const logger = require('../logger');
 const mem = require('../db/messages');
 const crm = require('../db/crm');
+const audit = require('../db/audit');
 const billing = require('../services/billing');
 const webhooks = require('../services/webhooks');
 const agent = require('../agent/agent');
@@ -324,7 +325,10 @@ async function respond({ userId, settings, remoteJid, chatKey, number, clientJid
     outcome = { action: 'escalate', reason: 'agent error', text: '' };
   }
 
-  if (outcome.action === 'ignore') return mark('ignored');
+  if (outcome.action === 'ignore') {
+    audit.log(userId, { chatId: chatKey, phone: number, action: 'ignored', detail: outcome.reason || '' });
+    return mark('ignored');
+  }
 
   if (outcome.action === 'escalate') {
     const who = clientName ? `${clientName}\n📱 +${number}` : `📱 +${number}`;
@@ -337,12 +341,14 @@ async function respond({ userId, settings, remoteJid, chatKey, number, clientJid
       clientJid,
     );
     if (outcome.text) await reply(outcome.text);
+    audit.log(userId, { chatId: chatKey, phone: number, action: 'escalated', detail: outcome.reason || '' });
     return mark('escalated');
   }
 
   if (outcome.text) {
     await reply(outcome.text);
     logger.info({ userId, to: number }, 'replied');
+    audit.log(userId, { chatId: chatKey, phone: number, action: 'replied', detail: outcome.text.slice(0, 200) });
     return mark('replied');
   }
   return mark('empty_reply');
