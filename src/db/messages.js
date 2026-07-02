@@ -185,6 +185,27 @@ async function setClientActivity(userId, chatId, ts) {
   );
 }
 
+// ── Per-chat agent pause (human takeover) ────────────────────────────────────
+
+// Pause auto-replies for one chat until `untilMs` (0 = resume now).
+async function setPaused(userId, chatId, untilMs) {
+  await query(
+    `INSERT INTO chat_state (user_id, chat_id, paused_until)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (user_id, chat_id)
+     DO UPDATE SET paused_until = EXCLUDED.paused_until`,
+    [userId, chatId, Math.max(0, Math.floor(untilMs) || 0)],
+  );
+}
+
+async function getPausedUntil(userId, chatId) {
+  const { rows } = await query(
+    `SELECT paused_until FROM chat_state WHERE user_id = $1 AND chat_id = $2`,
+    [userId, chatId],
+  );
+  return rows[0] ? Number(rows[0].paused_until) : 0;
+}
+
 async function markFollowupDone(userId, chatId) {
   await query(
     `UPDATE chat_state SET followup_done = true WHERE user_id = $1 AND chat_id = $2`,
@@ -286,6 +307,8 @@ module.exports = {
   getLastReplyAt,
   setLastReplyAt,
   setClientActivity,
+  setPaused,
+  getPausedUntil,
   markFollowupDone,
   getFollowupCandidates,
 };

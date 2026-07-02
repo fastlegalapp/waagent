@@ -134,6 +134,12 @@ async function handleMessage({ userId, settings, msg, send, sendImage, downloadM
     return mark('no_api_key');
   }
   if (!isAllowed(settings.reply, number)) return mark('not_allowed');
+  // Human takeover: the owner paused the agent for this chat.
+  try {
+    if ((await mem.getPausedUntil(userId, chatKey)) > Date.now()) return mark('paused');
+  } catch (_) {
+    /* pause check is best-effort */
+  }
 
   // Wait for the client to finish (the configured reply-delay range is the
   // "gather" window). Each new message resets the timer; when it finally fires,
@@ -199,6 +205,14 @@ async function respond({ userId, settings, remoteJid, chatKey, number, clientJid
       logger.error({ err: err.message, userId }, 'failed to persist reply');
     }
   };
+
+  // Re-check the pause when the gather window fires — the owner may have taken
+  // over while we were waiting for the client to finish typing.
+  try {
+    if ((await mem.getPausedUntil(userId, chatKey)) > Date.now()) return mark('paused');
+  } catch (_) {
+    /* best-effort */
+  }
 
   // Min seconds between replies to the same chat (across separate bursts).
   const now = Date.now();

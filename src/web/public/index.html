@@ -188,7 +188,19 @@
                     <strong id="threadName"></strong>
                     <span id="threadSub" class="muted small"></span>
                   </div>
+                  <div class="thread-pause">
+                    <span id="pauseState" class="pause-state hidden">⏸ Agent paused</span>
+                    <select id="pauseSelect" title="Pause the agent for this chat">
+                      <option value="">Agent: on</option>
+                      <option value="60">Pause 1 hour</option>
+                      <option value="480">Pause 8 hours</option>
+                      <option value="1440">Pause 24 hours</option>
+                      <option value="0">Resume now</option>
+                    </select>
+                  </div>
                 </div>
+                <p class="hint thread-hint">Replying here pauses the agent for this chat for 30 minutes
+                  so it doesn’t talk over you — use the menu above to resume or pause longer.</p>
                 <div id="threadMsgs" class="thread-msgs"></div>
                 <form id="threadForm" class="thread-form">
                   <input type="text" id="threadInput" placeholder="Type a reply…" autocomplete="off" />

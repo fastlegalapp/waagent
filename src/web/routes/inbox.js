@@ -22,10 +22,29 @@ router.get('/thread', async (req, res) => {
   const chatId = String(req.query.chatId || '');
   if (!chatId) return res.status(400).json({ error: 'chatId required.' });
   try {
-    res.json({ messages: await mem.getThread(req.userId, chatId) });
+    const [messages, pausedUntil] = await Promise.all([
+      mem.getThread(req.userId, chatId),
+      mem.getPausedUntil(req.userId, chatId).catch(() => 0),
+    ]);
+    res.json({ messages, pausedUntil: pausedUntil > Date.now() ? pausedUntil : 0 });
   } catch (err) {
     logger.error({ err: err.message, userId: req.userId }, 'inbox thread failed');
     res.status(500).json({ error: 'Could not load the conversation.' });
+  }
+});
+
+// Pause / resume the agent for one chat. minutes = 0 resumes.
+router.post('/pause', async (req, res) => {
+  const chatId = String(req.body?.chatId || '');
+  const minutes = Math.max(0, Math.min(7 * 24 * 60, parseInt(req.body?.minutes, 10) || 0));
+  if (!chatId) return res.status(400).json({ error: 'chatId required.' });
+  try {
+    const until = minutes > 0 ? Date.now() + minutes * 60000 : 0;
+    await mem.setPaused(req.userId, chatId, until);
+    res.json({ ok: true, pausedUntil: until });
+  } catch (err) {
+    logger.error({ err: err.message, userId: req.userId }, 'inbox pause failed');
+    res.status(500).json({ error: 'Could not update the agent for this chat.' });
   }
 });
 
@@ -46,7 +65,18 @@ router.post('/send', async (req, res) => {
     });
     // Counts as "we replied" for follow-up logic.
     mem.setLastReplyAt(req.userId, chatId, Date.now()).catch(() => {});
-    res.json({ ok: true });
+    // The owner just took over — give them the floor for 30 minutes so the
+    // agent doesn't talk over their manual conversation (visible in the UI,
+    // resumable with one click).
+    let pausedUntil = 0;
+    try {
+      const current = await mem.getPausedUntil(req.userId, chatId);
+      pausedUntil = Math.max(current, Date.now() + 30 * 60000);
+      await mem.setPaused(req.userId, chatId, pausedUntil);
+    } catch (_) {
+      /* best-effort */
+    }
+    res.json({ ok: true, pausedUntil });
   } catch (err) {
     logger.error({ err: err.message, userId: req.userId }, 'inbox send failed');
     res.status(500).json({ error: 'Could not send the message.' });

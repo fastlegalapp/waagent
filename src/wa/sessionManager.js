@@ -313,6 +313,27 @@ async function connect(userId) {
   const handleOwnerSelf = async (m) => {
     const text = extractText(m.message);
     if (!text) return;
+
+    // Takeover commands the owner can type in their self-chat:
+    //   #pause 9198xxxxxx [2h|30m|1d]   → agent stops replying to that chat
+    //   #resume 9198xxxxxx              → agent resumes
+    const cmd = text.match(/^\s*#(pause|resume)\s+\+?(\d[\d\s-]{5,}?\d)(?:\s+(\d+\s*[mhd]))?\s*$/i);
+    if (cmd) {
+      const num = cmd[2].replace(/[^0-9]/g, '');
+      const jid = `${num}@s.whatsapp.net`;
+      if (cmd[1].toLowerCase() === 'resume') {
+        await mem.setPaused(userId, jid, 0);
+        await send(selfJid(), `▶️ Agent resumed for +${num}.`);
+      } else {
+        const dur = (cmd[3] || '8h').replace(/\s+/g, '').toLowerCase();
+        const n = parseInt(dur, 10) || 8;
+        const ms = dur.endsWith('m') ? n * 60000 : dur.endsWith('d') ? n * 86400000 : n * 3600000;
+        await mem.setPaused(userId, jid, Date.now() + ms);
+        await send(selfJid(), `⏸️ Agent paused for +${num} (${dur}). Send "#resume ${num}" to switch it back on.`);
+      }
+      return;
+    }
+
     let target = null;
     let body = text;
     let via = null;

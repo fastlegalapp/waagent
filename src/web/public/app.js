@@ -266,6 +266,7 @@ const RESULT_TEXT = {
   subscription_expired: ['bad', 'Subscription expired — renew in Billing to resume auto-replies'],
   not_allowed: ['bad', 'Sender is blocked or not in your allowlist'],
   rate_limited: ['bad', 'Skipped: too soon after the previous reply'],
+  paused: ['bad', 'Agent is paused for this chat (you took over) — resume it from the Inbox'],
   after_hours: ['good', 'Outside business hours — sent the holding message'],
   group_ignored: ['bad', 'Group chat — ignored (by setting)'],
   ignored: ['bad', 'Agent chose not to reply (spam / not worth it)'],
@@ -1367,13 +1368,38 @@ function renderThread(messages) {
   cont.dataset.scrolled = '1';
 }
 
+function renderPauseState(pausedUntil) {
+  const paused = pausedUntil && pausedUntil > Date.now();
+  $('pauseState').classList.toggle('hidden', !paused);
+  if (paused) {
+    const mins = Math.round((pausedUntil - Date.now()) / 60000);
+    $('pauseState').textContent = `⏸ Agent paused (${mins < 60 ? mins + 'm' : Math.round(mins / 60) + 'h'} left)`;
+  }
+  $('pauseSelect').value = '';
+}
+
 async function refreshThread() {
   if (!inboxState.chatId) return;
   try {
-    const { messages } = await api(`/api/inbox/thread?chatId=${encodeURIComponent(inboxState.chatId)}`);
+    const { messages, pausedUntil } = await api(`/api/inbox/thread?chatId=${encodeURIComponent(inboxState.chatId)}`);
     renderThread(messages);
+    renderPauseState(pausedUntil);
   } catch (_) {}
 }
+
+$('pauseSelect').onchange = async () => {
+  const v = $('pauseSelect').value;
+  if (v === '' || !inboxState.chatId) return;
+  try {
+    const { pausedUntil } = await api('/api/inbox/pause', {
+      method: 'POST',
+      body: JSON.stringify({ chatId: inboxState.chatId, minutes: parseInt(v, 10) }),
+    });
+    renderPauseState(pausedUntil);
+  } catch (e) {
+    $('inboxMsg').textContent = e.message;
+  }
+};
 
 function openThread(chatId, name) {
   inboxState.chatId = chatId;
