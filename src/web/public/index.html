@@ -134,6 +134,7 @@
             <button data-nav="faqs">📋 Quick Answers</button>
             <button data-nav="lists">📦 Lists</button>
             <button data-nav="crm">👥 CRM &amp; Leads</button>
+            <button data-nav="orders">🧾 Orders</button>
             <button data-nav="payments">💳 Payments</button>
             <button data-nav="ai">🔑 AI Provider</button>
             <button data-nav="billing">💼 Billing</button>
@@ -344,6 +345,18 @@
               </div>
             </details>
             <p id="crmMsg" class="muted"></p>
+          </section>
+
+          <!-- ORDERS (not part of the settings form) -->
+          <section class="panel hidden" data-panel="orders">
+            <h2>Orders</h2>
+            <p class="muted">Orders your agent has taken. Move them along —
+              <strong>new → confirmed → paid → ready → delivered</strong> — and the client is
+              messaged automatically at each step.</p>
+            <label class="check"><input type="checkbox" id="ordNotify" checked />
+              Message the client on WhatsApp when I change a status</label>
+            <div id="ordersTable" class="items-table"></div>
+            <p id="ordersMsg" class="muted"></p>
           </section>
 
           <!-- BILLING (not part of the settings form) -->

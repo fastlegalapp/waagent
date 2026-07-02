@@ -368,6 +368,14 @@ legend { color: var(--muted); font-size: 13px; padding: 0 6px; font-weight: 600;
   .thread-msgs { max-height: 50vh; }
 }
 
+/* Orders */
+.ord-items { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.ord-status { margin: 0; padding: 6px 8px; font-size: 12.5px; width: auto; font-weight: 600; }
+.ord-status.st-green { color: var(--ok); }
+.ord-status.st-gold { color: var(--gold); }
+.ord-status.st-blue { color: var(--blue); }
+.ord-status.st-red { color: var(--danger); }
+
 /* Billing */
 .bill-status { margin: 12px 0; font-size: 15px; }
 .bill-plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 6px; }

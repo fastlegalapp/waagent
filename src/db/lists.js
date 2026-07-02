@@ -198,6 +198,40 @@ async function recordOrder(userId, order) {
   return fields;
 }
 
+// All orders (rows of the "Orders" list), newest first.
+async function listOrders(userId, limit = 300) {
+  const { rows } = await query(
+    `SELECT i.id, i.fields, i.created_at
+       FROM data_items i JOIN data_lists l ON l.id = i.list_id
+      WHERE i.user_id = $1 AND lower(l.name) = 'orders'
+      ORDER BY i.created_at DESC LIMIT $2`,
+    [userId, Math.min(limit, 1000)],
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    fields: r.fields || {},
+    createdAt: r.created_at ? new Date(r.created_at).getTime() : null,
+  }));
+}
+
+const ORDER_STATUSES = ['new', 'confirmed', 'paid', 'ready', 'delivered', 'cancelled'];
+
+// Move an order along the flow. Returns the updated order or null.
+async function setOrderStatus(userId, itemId, status) {
+  if (!ORDER_STATUSES.includes(status)) return null;
+  const now = new Date();
+  const patch = {
+    status,
+    status_updated_at: `${now.toISOString().slice(0, 10)} ${now.toISOString().slice(11, 16)}`,
+  };
+  const { rows } = await query(
+    `UPDATE data_items SET fields = fields || $2::jsonb
+      WHERE id = $1 AND user_id = $3 RETURNING id, fields`,
+    [itemId, JSON.stringify(patch), userId],
+  );
+  return rows[0] ? { id: rows[0].id, fields: rows[0].fields } : null;
+}
+
 // Loose phone match (country-code optional), mirrors message-utils.
 function loosePhoneMatch(a, b) {
   const x = String(a || '').replace(/[^0-9]/g, '');
@@ -264,6 +298,9 @@ module.exports = {
   searchItems,
   recordOrder,
   markOrderPaid,
+  listOrders,
+  setOrderStatus,
+  ORDER_STATUSES,
   remindableLists,
   itemsForReminder,
   markReminded,

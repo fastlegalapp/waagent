@@ -62,7 +62,7 @@ $('logoutBtn').onclick = async () => {
 
 // ── Sidebar nav ──────────────────────────────────────────────────────────────
 // Standalone panels live directly under .content; the rest live in #settingsForm.
-const STANDALONE_PANELS = ['overview', 'inbox', 'connect', 'lists', 'crm', 'payments', 'billing'];
+const STANDALONE_PANELS = ['overview', 'inbox', 'connect', 'lists', 'crm', 'orders', 'payments', 'billing'];
 function showPanel(name) {
   document.querySelectorAll('.side-nav button').forEach((b) =>
     b.classList.toggle('active', b.dataset.nav === name),
@@ -80,6 +80,7 @@ function showPanel(name) {
   if (name !== 'inbox') closeThread();
   if (name === 'lists') loadLists();
   if (name === 'crm') loadCrm();
+  if (name === 'orders') loadOrders();
   if (name === 'payments') loadPaymentQr();
   if (name === 'billing') loadBilling();
 }
@@ -1261,6 +1262,52 @@ $('crmSaveTemplates').onclick = async () => {
     $('crmTemplateMsg').textContent = e.message;
   }
 };
+
+// ── Orders ───────────────────────────────────────────────────────────────────
+const ORDER_STATUS_COLORS = {
+  new: '', confirmed: 'st-blue', paid: 'st-gold', ready: 'st-blue', delivered: 'st-green', cancelled: 'st-red',
+};
+
+async function loadOrders() {
+  let data;
+  try { data = await api('/api/orders'); }
+  catch (e) { $('ordersTable').innerHTML = `<p class="error">${esc(e.message)}</p>`; return; }
+  const { orders, statuses } = data;
+  if (!orders.length) {
+    $('ordersTable').innerHTML = '<p class="muted small">No orders yet — they appear here when the agent takes one.</p>';
+    return;
+  }
+  const opts = (sel) => statuses.map((s) => `<option value="${s}"${s === sel ? ' selected' : ''}>${s}</option>`).join('');
+  const rows = orders.map((o) => {
+    const f = o.fields;
+    const st = String(f.status || 'new');
+    return `<tr data-id="${o.id}">
+      <td class="crm-phone">${esc(f.customer || '—')}</td>
+      <td class="ord-items" title="${esc(f.items || '')}">${esc(f.items || '')}</td>
+      <td>${esc(f.total || '—')}</td>
+      <td><select class="ord-status ${ORDER_STATUS_COLORS[st] || ''}">${opts(st)}</select></td>
+      <td class="muted small">${o.createdAt ? timeAgo(o.createdAt) : (f.created_at || '')}</td>
+    </tr>`;
+  }).join('');
+  $('ordersTable').innerHTML = `<table class="data-table"><tr>
+    <th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Placed</th></tr>${rows}</table>`;
+  $('ordersTable').querySelectorAll('tr[data-id]').forEach((tr) => {
+    tr.querySelector('.ord-status').onchange = async (e) => {
+      const status = e.target.value;
+      try {
+        const r = await api(`/api/orders/${tr.dataset.id}/status`, {
+          method: 'POST',
+          body: JSON.stringify({ status, notify: $('ordNotify').checked }),
+        });
+        $('ordersMsg').textContent = r.notified ? `Updated — client notified (${status}).` : `Updated to ${status}.`;
+        setTimeout(() => ($('ordersMsg').textContent = ''), 3000);
+        loadOrders();
+      } catch (err) {
+        $('ordersMsg').textContent = err.message;
+      }
+    };
+  });
+}
 
 // ── Payment QR ───────────────────────────────────────────────────────────────
 async function loadPaymentQr() {
