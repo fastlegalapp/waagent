@@ -42,6 +42,8 @@ const I18N = {
     h_replies: 'जवाब और फॉलो-अप',
     btn_connect: 'लिंक / कनेक्ट करें',
     btn_save: 'सेटिंग्स सेव करें',
+    nav_team: '🤝 टीम',
+    h_team: 'टीम',
   },
 };
 let currentLang = localStorage.getItem('lang') === 'hi' ? 'hi' : 'en';
@@ -116,7 +118,7 @@ $('logoutBtn').onclick = async () => {
 
 // ── Sidebar nav ──────────────────────────────────────────────────────────────
 // Standalone panels live directly under .content; the rest live in #settingsForm.
-const STANDALONE_PANELS = ['overview', 'inbox', 'connect', 'lists', 'crm', 'orders', 'payments', 'billing'];
+const STANDALONE_PANELS = ['overview', 'inbox', 'connect', 'lists', 'crm', 'orders', 'payments', 'billing', 'team'];
 function showPanel(name) {
   document.querySelectorAll('.side-nav button').forEach((b) =>
     b.classList.toggle('active', b.dataset.nav === name),
@@ -137,6 +139,7 @@ function showPanel(name) {
   if (name === 'orders') loadOrders();
   if (name === 'payments') loadPaymentQr();
   if (name === 'billing') loadBilling();
+  if (name === 'team') loadTeam();
 }
 document.querySelectorAll('.side-nav button').forEach((b) => {
   b.onclick = () => { showPanel(b.dataset.nav); closeNav(); };
@@ -1654,6 +1657,43 @@ document.querySelectorAll('#billPlans [data-plan]').forEach((b) => {
   b.onclick = () => subscribe(b.dataset.plan);
 });
 
+// ── Team ─────────────────────────────────────────────────────────────────────
+async function loadTeam() {
+  let members;
+  try { ({ members } = await api('/api/team')); }
+  catch (e) { $('teamTable').innerHTML = `<p class="error">${esc(e.message)}</p>`; return; }
+  if (!members.length) {
+    $('teamTable').innerHTML = '<p class="muted small">No team members yet.</p>';
+    return;
+  }
+  const rows = members.map((m) => `<tr>
+    <td>${esc(m.email)}</td>
+    <td>${m.role === 'viewer' ? '👁️ Viewer' : '🛠️ Operator'}</td>
+    <td class="${m.joined ? 'ok' : 'muted'} small">${m.joined ? 'joined' : 'not signed up yet'}</td>
+    <td><button class="faq-del" data-rm="${m.id}" title="Remove">✕</button></td></tr>`).join('');
+  $('teamTable').innerHTML = `<table class="data-table"><tr><th>Email</th><th>Role</th><th>Status</th><th></th></tr>${rows}</table>`;
+  $('teamTable').querySelectorAll('[data-rm]').forEach((b) => {
+    b.onclick = async () => {
+      if (!confirm('Remove this team member? They will lose access immediately.')) return;
+      await api(`/api/team/${b.dataset.rm}`, { method: 'DELETE' });
+      loadTeam();
+    };
+  });
+}
+$('teamAddBtn').onclick = async () => {
+  const email = $('teamEmail').value.trim();
+  if (!email) return;
+  try {
+    await api('/api/team', { method: 'POST', body: JSON.stringify({ email, role: $('teamRole').value }) });
+    $('teamEmail').value = '';
+    $('teamMsg').textContent = 'Added — ask them to sign up with that email.';
+    setTimeout(() => ($('teamMsg').textContent = ''), 4000);
+    loadTeam();
+  } catch (e) {
+    $('teamMsg').textContent = e.message;
+  }
+};
+
 // ── WhatsApp linking ─────────────────────────────────────────────────────────
 let pollTimer = null;
 function renderWaState(st) {
@@ -1680,8 +1720,12 @@ $('waLogoutBtn').onclick = async () => {
 // ── Boot ─────────────────────────────────────────────────────────────────────
 async function boot() {
   try {
-    const { user } = await api('/api/auth/me');
-    $('userEmail').textContent = user.email;
+    const { user, role } = await api('/api/auth/me');
+    $('userEmail').textContent = user.email + (role && role !== 'owner' ? ` (${role})` : '');
+    // Team members don't manage billing or the team; server enforces this too.
+    document.querySelectorAll('[data-nav="billing"], [data-nav="team"]').forEach((b) =>
+      b.classList.toggle('hidden', !!role && role !== 'owner'),
+    );
     show('app');
     showPanel('connect');
     await loadSettings();

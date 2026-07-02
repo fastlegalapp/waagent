@@ -15,6 +15,7 @@ const statsRoutes = require('./routes/stats');
 const billingRoutes = require('./routes/billing');
 const inboxRoutes = require('./routes/inbox');
 const ordersRoutes = require('./routes/orders');
+const teamRoutes = require('./routes/team');
 const waRoutes = require('./routes/wa');
 const ready = require('../ready');
 
@@ -40,6 +41,7 @@ function createApp() {
   app.use('/api/billing', billingRoutes);
   app.use('/api/inbox', inboxRoutes);
   app.use('/api/orders', ordersRoutes);
+  app.use('/api/team', teamRoutes);
   app.use('/api/wa', waRoutes);
 
   // Always 200 once the process is up, so the panel's proxy has a live upstream

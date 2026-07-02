@@ -138,6 +138,7 @@
             <button data-nav="payments" data-i18n="nav_payments">💳 Payments</button>
             <button data-nav="ai" data-i18n="nav_ai">🔑 AI Provider</button>
             <button data-nav="billing" data-i18n="nav_billing">💼 Billing</button>
+            <button data-nav="team" data-i18n="nav_team">🤝 Team</button>
             <button data-nav="replies" data-i18n="nav_replies">⚙️ Replies &amp; Follow-ups</button>
           </nav>
           <div class="side-foot">
@@ -379,6 +380,26 @@
             <p id="billMsg" class="muted"></p>
             <p class="hint">Payments are processed securely by Razorpay. Your plan activates
               instantly after payment.</p>
+          </section>
+
+          <!-- TEAM (not part of the settings form) -->
+          <section class="panel hidden" data-panel="team">
+            <h2 data-i18n="h_team">Team</h2>
+            <p class="muted">Give your staff access to this workspace without sharing your login.
+              <strong>Operators</strong> can work the inbox, orders, lists and CRM;
+              <strong>viewers</strong> can only look. Only you can change settings, billing and the team.</p>
+            <div class="team-add">
+              <input type="email" id="teamEmail" placeholder="staff@example.com" />
+              <select id="teamRole">
+                <option value="operator">Operator</option>
+                <option value="viewer">Viewer</option>
+              </select>
+              <button type="button" id="teamAddBtn" class="primary">Add</button>
+            </div>
+            <p class="hint">Ask them to sign up at this site with that exact email — they'll land in
+              your workspace automatically. Use an email that isn't already a FastLegal owner account.</p>
+            <div id="teamTable" class="items-table"></div>
+            <p id="teamMsg" class="muted"></p>
           </section>
 
           <!-- PAYMENTS (not part of the settings form) -->

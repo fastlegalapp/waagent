@@ -77,9 +77,9 @@ router.post('/logout', (req, res) => {
 });
 
 router.get('/me', session.requireAuth, async (req, res) => {
-  const user = await users.findById(req.userId);
+  const user = await users.findById(req.actorId || req.userId);
   if (!user) return res.status(401).json({ error: 'Not signed in' });
-  res.json({ user: { id: user.id, email: user.email } });
+  res.json({ user: { id: user.id, email: user.email }, role: req.role || 'owner' });
 });
 
 module.exports = router;

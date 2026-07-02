@@ -110,6 +110,19 @@ CREATE TABLE IF NOT EXISTS crm_contacts (
 );
 CREATE INDEX IF NOT EXISTS crm_contacts_user_idx ON crm_contacts (user_id, stage);
 
+-- Team: staff accounts attached to an owner's workspace. Matching is by the
+-- staff account's email; role gates what they can do (operator = day-to-day
+-- work, viewer = read-only).
+CREATE TABLE IF NOT EXISTS team_members (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id   UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  email      TEXT NOT NULL,
+  role       TEXT NOT NULL DEFAULT 'operator',    -- 'operator' | 'viewer'
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (owner_id, email)
+);
+CREATE INDEX IF NOT EXISTS team_members_email_idx ON team_members (email);
+
 -- Billing: successful payments (Razorpay), one row per capture. paid_until on
 -- user_settings is the single source of truth for access.
 CREATE TABLE IF NOT EXISTS billing_payments (
