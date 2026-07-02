@@ -10,6 +10,60 @@ async function api(path, opts = {}) {
   return body;
 }
 
+// ── Language (English / Hindi) ───────────────────────────────────────────────
+// Lightweight chrome translation: nav, headings and primary actions. Field-level
+// labels stay in English (the Hinglish convention most Indian SaaS follows).
+const I18N = {
+  hi: {
+    nav_overview: '📊 सारांश',
+    nav_inbox: '💬 इनबॉक्स',
+    nav_connect: '📱 कनेक्ट करें',
+    nav_persona: '🗣️ बात करने का तरीका',
+    nav_faqs: '📋 तुरंत जवाब',
+    nav_lists: '📦 लिस्ट',
+    nav_crm: '👥 CRM और लीड्स',
+    nav_orders: '🧾 ऑर्डर',
+    nav_payments: '💳 पेमेंट',
+    nav_ai: '🔑 AI प्रोवाइडर',
+    nav_billing: '💼 बिलिंग',
+    nav_replies: '⚙️ जवाब और फॉलो-अप',
+    sign_out: 'साइन आउट',
+    h_overview: 'सारांश',
+    h_inbox: 'इनबॉक्स',
+    h_connect: 'आपका WhatsApp',
+    h_lists: 'डेटा लिस्ट',
+    h_crm: 'CRM और लीड्स',
+    h_orders: 'ऑर्डर',
+    h_billing: 'बिलिंग',
+    h_payments: 'पेमेंट QR',
+    h_persona: 'बात करने का तरीका',
+    h_faqs: 'तुरंत जवाब',
+    h_ai: 'AI प्रोवाइडर',
+    h_replies: 'जवाब और फॉलो-अप',
+    btn_connect: 'लिंक / कनेक्ट करें',
+    btn_save: 'सेटिंग्स सेव करें',
+  },
+};
+let currentLang = localStorage.getItem('lang') === 'hi' ? 'hi' : 'en';
+const I18N_DEFAULTS = {}; // filled from the DOM's English text on first apply
+
+function applyLang() {
+  document.querySelectorAll('[data-i18n]').forEach((el) => {
+    const key = el.dataset.i18n;
+    if (!(key in I18N_DEFAULTS)) I18N_DEFAULTS[key] = el.textContent;
+    el.textContent = (currentLang === 'hi' && I18N.hi[key]) || I18N_DEFAULTS[key];
+  });
+  const t = $('langToggle');
+  if (t) t.textContent = currentLang === 'hi' ? 'View in English' : 'हिंदी में देखें';
+}
+document.addEventListener('DOMContentLoaded', applyLang);
+applyLang();
+$('langToggle').onclick = () => {
+  currentLang = currentLang === 'hi' ? 'en' : 'hi';
+  localStorage.setItem('lang', currentLang);
+  applyLang();
+};
+
 // ── View switching ───────────────────────────────────────────────────────────
 function closeNav() {
   document.body.classList.remove('nav-open');

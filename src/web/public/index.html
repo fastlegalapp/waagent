@@ -127,22 +127,23 @@
         <aside class="sidebar" id="sidebar">
           <div class="brand"><span class="fl-mark">Fast</span>Legal</div>
           <nav class="side-nav">
-            <button data-nav="overview">📊 Overview</button>
-            <button data-nav="inbox">💬 Inbox</button>
-            <button data-nav="connect" class="active">📱 Connect</button>
-            <button data-nav="persona">🗣️ Persona &amp; Instructions</button>
-            <button data-nav="faqs">📋 Quick Answers</button>
-            <button data-nav="lists">📦 Lists</button>
-            <button data-nav="crm">👥 CRM &amp; Leads</button>
-            <button data-nav="orders">🧾 Orders</button>
-            <button data-nav="payments">💳 Payments</button>
-            <button data-nav="ai">🔑 AI Provider</button>
-            <button data-nav="billing">💼 Billing</button>
-            <button data-nav="replies">⚙️ Replies &amp; Follow-ups</button>
+            <button data-nav="overview" data-i18n="nav_overview">📊 Overview</button>
+            <button data-nav="inbox" data-i18n="nav_inbox">💬 Inbox</button>
+            <button data-nav="connect" class="active" data-i18n="nav_connect">📱 Connect</button>
+            <button data-nav="persona" data-i18n="nav_persona">🗣️ Persona &amp; Instructions</button>
+            <button data-nav="faqs" data-i18n="nav_faqs">📋 Quick Answers</button>
+            <button data-nav="lists" data-i18n="nav_lists">📦 Lists</button>
+            <button data-nav="crm" data-i18n="nav_crm">👥 CRM &amp; Leads</button>
+            <button data-nav="orders" data-i18n="nav_orders">🧾 Orders</button>
+            <button data-nav="payments" data-i18n="nav_payments">💳 Payments</button>
+            <button data-nav="ai" data-i18n="nav_ai">🔑 AI Provider</button>
+            <button data-nav="billing" data-i18n="nav_billing">💼 Billing</button>
+            <button data-nav="replies" data-i18n="nav_replies">⚙️ Replies &amp; Follow-ups</button>
           </nav>
           <div class="side-foot">
+            <button id="langToggle" class="link" title="भाषा बदलें / change language">हिंदी में देखें</button>
             <span id="userEmail" class="muted small"></span>
-            <button id="logoutBtn" class="link">Sign out</button>
+            <button id="logoutBtn" class="link" data-i18n="sign_out">Sign out</button>
           </div>
         </aside>
         <div class="scrim" id="scrim"></div>
@@ -150,7 +151,7 @@
         <main class="content">
           <!-- OVERVIEW / ANALYTICS (not part of the settings form) -->
           <section class="panel hidden" data-panel="overview">
-            <h2>Overview</h2>
+            <h2 data-i18n="h_overview">Overview</h2>
             <div class="ov-controls">
               <p class="muted">How your agent is doing.</p>
               <select id="ovDays">
@@ -177,7 +178,7 @@
 
           <!-- INBOX (not part of the settings form) -->
           <section class="panel hidden" data-panel="inbox">
-            <h2>Inbox</h2>
+            <h2 data-i18n="h_inbox">Inbox</h2>
             <p class="muted">Every conversation your agent is having. Open one to read it or jump in
               yourself — your replies send from your WhatsApp.</p>
             <div class="inbox">
@@ -214,7 +215,7 @@
 
           <!-- CONNECT (not part of the settings form) -->
           <section class="panel" data-panel="connect">
-            <h2>Your WhatsApp</h2>
+            <h2 data-i18n="h_connect">Your WhatsApp</h2>
             <p class="muted">Link your own number — scan with
               <strong>WhatsApp → Linked devices → Link a device</strong>.</p>
             <div class="wa-status">Status: <span id="waStatus" class="badge">idle</span></div>
@@ -223,7 +224,7 @@
               <p class="muted">QR refreshes automatically.</p>
             </div>
             <div class="row">
-              <button id="waStartBtn" class="primary">Link / Connect</button>
+              <button id="waStartBtn" class="primary" data-i18n="btn_connect">Link / Connect</button>
               <button id="waStopBtn" class="ghost">Disconnect</button>
               <button id="waLogoutBtn" class="danger">Unlink</button>
               <button type="button" id="diagBtn" class="ghost">Run diagnostics</button>
@@ -237,7 +238,7 @@
 
           <!-- LISTS (not part of the settings form) -->
           <section class="panel hidden" data-panel="lists">
-            <h2>Data Lists</h2>
+            <h2 data-i18n="h_lists">Data Lists</h2>
             <p class="muted">Create lists of anything — products, services, customers, leads,
               EMI/loan schedules. Tell the agent how to use each list and it answers clients
               from it; lists with a due date can send automatic reminders.</p>
@@ -316,7 +317,7 @@
 
           <!-- CRM & LEADS (not part of the settings form) -->
           <section class="panel hidden" data-panel="crm">
-            <h2>CRM &amp; Leads</h2>
+            <h2 data-i18n="h_crm">CRM &amp; Leads</h2>
             <p class="muted">Everyone who messages you on WhatsApp is captured here as a lead and moves
               through your pipeline. When they place or pay for an order, they’re converted to a
               customer automatically. Message people by stage with templates tuned to your business.</p>
@@ -349,7 +350,7 @@
 
           <!-- ORDERS (not part of the settings form) -->
           <section class="panel hidden" data-panel="orders">
-            <h2>Orders</h2>
+            <h2 data-i18n="h_orders">Orders</h2>
             <p class="muted">Orders your agent has taken. Move them along —
               <strong>new → confirmed → paid → ready → delivered</strong> — and the client is
               messaged automatically at each step.</p>
@@ -361,7 +362,7 @@
 
           <!-- BILLING (not part of the settings form) -->
           <section class="panel hidden" data-panel="billing">
-            <h2>Billing</h2>
+            <h2 data-i18n="h_billing">Billing</h2>
             <div id="billStatus" class="bill-status"></div>
             <div id="billPlans" class="bill-plans hidden">
               <div class="bill-plan">
@@ -382,7 +383,7 @@
 
           <!-- PAYMENTS (not part of the settings form) -->
           <section class="panel hidden" data-panel="payments">
-            <h2>Payment QR</h2>
+            <h2 data-i18n="h_payments">Payment QR</h2>
             <p class="muted">Upload your payment QR (UPI / bank). When a client is ready to pay,
               the agent sends them this QR to scan — no payment gateway needed.</p>
             <div class="qr-upload">
@@ -406,7 +407,7 @@
           <!-- SETTINGS FORM (persona / ai / replies) -->
           <form id="settingsForm">
             <section class="panel hidden" data-panel="persona">
-              <h2>Persona &amp; Instructions</h2>
+              <h2 data-i18n="h_persona">Persona &amp; Instructions</h2>
               <fieldset>
                 <legend>Identity</legend>
                 <label>Your name<input type="text" id="ownerName" /></label>
@@ -442,7 +443,7 @@
             </section>
 
             <section class="panel hidden" data-panel="faqs">
-              <h2>Quick Answers</h2>
+              <h2 data-i18n="h_faqs">Quick Answers</h2>
               <p class="muted">Set up common questions and a short answer for each —
                 office address, documents required, pricing, email, website, or
                 anything you like. You only need the basic facts; the agent answers
@@ -461,7 +462,7 @@
             </section>
 
             <section class="panel hidden" data-panel="ai">
-              <h2>AI Provider</h2>
+              <h2 data-i18n="h_ai">AI Provider</h2>
               <fieldset>
                 <legend>Provider &amp; key</legend>
                 <label>Provider
@@ -505,7 +506,7 @@
             </section>
 
             <section class="panel hidden" data-panel="replies">
-              <h2>Replies &amp; Follow-ups</h2>
+              <h2 data-i18n="h_replies">Replies &amp; Follow-ups</h2>
               <fieldset>
                 <legend>Replies</legend>
                 <label>Mode
@@ -561,7 +562,7 @@
             <div class="savebar">
               <span class="error" id="settingsError"></span>
               <span class="ok" id="settingsOk"></span>
-              <button type="submit" class="primary">Save settings</button>
+              <button type="submit" class="primary" data-i18n="btn_save">Save settings</button>
             </div>
           </form>
         </main>
