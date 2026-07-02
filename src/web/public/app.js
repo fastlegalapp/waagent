@@ -62,7 +62,7 @@ $('logoutBtn').onclick = async () => {
 
 // ── Sidebar nav ──────────────────────────────────────────────────────────────
 // Standalone panels live directly under .content; the rest live in #settingsForm.
-const STANDALONE_PANELS = ['connect', 'lists', 'crm', 'payments'];
+const STANDALONE_PANELS = ['overview', 'connect', 'lists', 'crm', 'payments'];
 function showPanel(name) {
   document.querySelectorAll('.side-nav button').forEach((b) =>
     b.classList.toggle('active', b.dataset.nav === name),
@@ -75,6 +75,7 @@ function showPanel(name) {
   document.querySelectorAll('#settingsForm [data-panel]').forEach((p) =>
     p.classList.toggle('hidden', p.dataset.panel !== name),
   );
+  if (name === 'overview') loadOverview();
   if (name === 'lists') loadLists();
   if (name === 'crm') loadCrm();
   if (name === 'payments') loadPaymentQr();
@@ -1007,6 +1008,68 @@ async function deleteItem(itemId) {
   await loadItems();
   loadLists();
 }
+
+// ── Overview / analytics ─────────────────────────────────────────────────────
+const INR = (n) =>
+  '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+
+function ovTile(label, value, sub) {
+  return `<div class="ov-tile"><span class="ov-n">${value}</span>
+    <span class="ov-l">${label}</span>${sub ? `<span class="ov-s">${sub}</span>` : ''}</div>`;
+}
+
+// Grouped column chart (received/sent per day). Pure divs — heights are % of
+// the max; every bar has a hover tooltip; values live in the table view below.
+function renderDaily(days) {
+  const max = Math.max(1, ...days.map((d) => Math.max(d.received, d.sent)));
+  const cols = days.map((d) => {
+    const dt = new Date(d.day + 'T00:00:00');
+    const lbl = `${dt.getDate()}/${dt.getMonth() + 1}`;
+    const h = (v) => Math.round((v / max) * 100);
+    return `<div class="col" title="${lbl} — received ${d.received}, replied ${d.sent}">
+      <div class="bars">
+        <i class="bar b-recv" style="height:${h(d.received)}%"></i>
+        <i class="bar b-sent" style="height:${h(d.sent)}%"></i>
+      </div><span class="xl">${lbl}</span></div>`;
+  });
+  $('ovDaily').innerHTML = cols.join('');
+  $('ovDailyTable').innerHTML = `<table class="data-table"><tr><th>Day</th><th>Received</th><th>Replied</th></tr>${
+    days.map((d) => `<tr><td>${d.day}</td><td>${d.received}</td><td>${d.sent}</td></tr>`).join('')}</table>`;
+}
+
+function renderHours(byHour) {
+  const max = Math.max(1, ...byHour);
+  $('ovHours').innerHTML = byHour.map((n, h) => {
+    const pct = Math.round((n / max) * 100);
+    return `<div class="col" title="${h}:00–${h}:59 — ${n} message${n === 1 ? '' : 's'}">
+      <div class="bars"><i class="bar b-sent" style="height:${pct}%"></i></div>
+      ${h % 3 === 0 ? `<span class="xl">${h}</span>` : '<span class="xl"></span>'}</div>`;
+  }).join('');
+  $('ovHoursTable').innerHTML = `<table class="data-table"><tr><th>Hour (IST)</th><th>Messages</th></tr>${
+    byHour.map((n, h) => `<tr><td>${h}:00</td><td>${n}</td></tr>`).join('')}</table>`;
+}
+
+async function loadOverview() {
+  $('ovMsg').textContent = '';
+  let d;
+  try {
+    d = await api(`/api/stats/overview?days=${$('ovDays').value}`);
+  } catch (e) {
+    $('ovMsg').textContent = e.message;
+    return;
+  }
+  $('ovTiles').innerHTML = [
+    ovTile('Messages received', d.messages.received, `${d.messages.chats} chat(s)`),
+    ovTile('Replies sent', d.messages.sent),
+    ovTile('New leads', d.crm.newLeads, `${d.crm.total} contacts total`),
+    ovTile('Customers', d.crm.customers, `${d.crm.conversion}% conversion`),
+    ovTile('Orders', d.orders.recent, `${d.orders.open} open`),
+    ovTile('Revenue collected', INR(d.orders.revenue), `${INR(d.orders.revenueAll)} all-time`),
+  ].join('');
+  renderDaily(d.daily || []);
+  renderHours(d.hours || []);
+}
+$('ovDays').onchange = () => loadOverview();
 
 // ── CRM & Leads ──────────────────────────────────────────────────────────────
 const CRM_STAGES = [

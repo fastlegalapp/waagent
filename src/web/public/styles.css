@@ -307,6 +307,33 @@ legend { color: var(--muted); font-size: 13px; padding: 0 6px; font-weight: 600;
 .csv-paste summary:hover { color: var(--text); }
 .csv-paste[open] summary { margin-bottom: 6px; }
 
+/* Overview / analytics. Chart hues validated for CVD + contrast on white:
+   received #2f6fe4, replied #b07a00. */
+.ov-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ov-controls select { width: auto; margin: 0; }
+.ov-controls p { margin: 0; }
+.ov-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 14px 0 4px; }
+.ov-tile { background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+.ov-n { font-family: var(--font-display); font-size: 26px; font-weight: 600; line-height: 1.1; }
+.ov-l { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.ov-s { font-size: 11.5px; color: var(--muted); }
+.ov-h { margin: 22px 0 6px; font-size: 15px; }
+.ov-legend { display: flex; gap: 14px; margin-bottom: 6px; }
+.ov-legend .lg { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
+.ov-legend .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.sw-recv, .b-recv { background: #2f6fe4; }
+.sw-sent, .b-sent { background: #b07a00; }
+.ov-chart { display: flex; align-items: flex-end; gap: 4px; height: 140px; border-bottom: 1px solid var(--line); padding-bottom: 0; }
+.ov-chart .col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; min-width: 0; }
+.ov-chart .bars { display: flex; align-items: flex-end; gap: 2px; height: calc(100% - 16px); }
+.ov-chart .bar { flex: 1; min-height: 2px; border-radius: 4px 4px 0 0; display: block; }
+.ov-chart .col:hover .bar { filter: brightness(1.15); }
+.ov-chart .xl { font-size: 10px; color: var(--muted); text-align: center; height: 16px; line-height: 16px; overflow: hidden; white-space: nowrap; }
+.ov-hours { height: 90px; }
+.ov-table { margin: 8px 0 4px; }
+.ov-table summary { cursor: pointer; font-size: 12px; color: var(--muted); font-weight: 600; }
+.ov-table .data-table { margin-top: 6px; }
+
 /* CRM & Leads */
 .crm-toggles { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 16px; }
 .crm-pipeline { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0 16px; }
