@@ -110,6 +110,21 @@ CREATE TABLE IF NOT EXISTS crm_contacts (
 );
 CREATE INDEX IF NOT EXISTS crm_contacts_user_idx ON crm_contacts (user_id, stage);
 
+-- Billing: successful payments (Razorpay), one row per capture. paid_until on
+-- user_settings is the single source of truth for access.
+CREATE TABLE IF NOT EXISTS billing_payments (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider     TEXT NOT NULL DEFAULT 'razorpay',
+  payment_id   TEXT NOT NULL,                       -- razorpay payment id (dedupe)
+  order_id     TEXT NOT NULL DEFAULT '',
+  plan         TEXT NOT NULL,                       -- 'monthly' | 'yearly'
+  amount_paise BIGINT NOT NULL DEFAULT 0,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (provider, payment_id)
+);
+CREATE INDEX IF NOT EXISTS billing_payments_user_idx ON billing_payments (user_id);
+
 -- Last-reply timestamps for per-chat rate limiting.
 CREATE TABLE IF NOT EXISTS chat_state (
   user_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -142,3 +157,5 @@ ALTER TABLE chat_state ADD COLUMN IF NOT EXISTS followup_done BOOLEAN NOT NULL D
 ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS crm_enabled BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS crm_auto_convert BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS crm_templates TEXT NOT NULL DEFAULT '{}';
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'trial';
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS paid_until TIMESTAMPTZ;

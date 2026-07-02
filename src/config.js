@@ -29,6 +29,16 @@ const config = {
   // Delete stored chat messages older than this many days, so the table
   // doesn't grow forever. 0 (or negative) disables pruning.
   messageRetentionDays: Number(process.env.MESSAGE_RETENTION_DAYS || 90),
+
+  // ── Billing (Razorpay). Leave the keys unset to disable billing entirely
+  // (everyone stays on a free plan forever — useful for self-hosting).
+  razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
+  razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || '',
+  razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || '',
+  // Prices in paise (₹499 / ₹4,999 defaults).
+  priceMonthlyPaise: Number(process.env.PRICE_MONTHLY_PAISE || 49900),
+  priceYearlyPaise: Number(process.env.PRICE_YEARLY_PAISE || 499900),
+  trialDays: Number(process.env.TRIAL_DAYS || 14),
 };
 
 function validate() {

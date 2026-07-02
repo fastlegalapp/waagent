@@ -12,6 +12,7 @@ const settingsRoutes = require('./routes/settings');
 const listsRoutes = require('./routes/lists');
 const crmRoutes = require('./routes/crm');
 const statsRoutes = require('./routes/stats');
+const billingRoutes = require('./routes/billing');
 const waRoutes = require('./routes/wa');
 const ready = require('../ready');
 
@@ -21,7 +22,11 @@ function createApp() {
   // We run behind a reverse proxy (Coolify/agent panel); trust one hop so
   // req.ip reflects the real client for rate limiting and the Secure cookie.
   app.set('trust proxy', 1);
-  app.use(express.json({ limit: '2mb' })); // room for an uploaded payment-QR data URL
+  // Capture the raw body so the Razorpay webhook signature can be verified.
+  app.use(express.json({
+    limit: '2mb', // room for an uploaded payment-QR data URL
+    verify: (req, res, buf) => { req.rawBody = buf; },
+  }));
   app.use(cookieParser());
 
   // API
@@ -30,6 +35,7 @@ function createApp() {
   app.use('/api/lists', listsRoutes);
   app.use('/api/crm', crmRoutes);
   app.use('/api/stats', statsRoutes);
+  app.use('/api/billing', billingRoutes);
   app.use('/api/wa', waRoutes);
 
   // Always 200 once the process is up, so the panel's proxy has a live upstream

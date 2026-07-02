@@ -2,6 +2,7 @@
 
 const express = require('express');
 const crm = require('../../db/crm');
+const billing = require('../../services/billing');
 const settingsDb = require('../../db/settings');
 const manager = require('../../wa/sessionManager');
 const mem = require('../../db/messages');
@@ -106,6 +107,9 @@ router.post('/broadcast', async (req, res) => {
   if (!crm.STAGES.includes(stage)) return res.status(400).json({ error: 'Unknown stage.' });
   if (!text) return res.status(400).json({ error: 'Message is empty.' });
   if (!manager.isOpen(req.userId)) return res.status(409).json({ error: 'WhatsApp is not connected.' });
+  if (!(await billing.isActive(req.userId))) {
+    return res.status(402).json({ error: 'Your subscription has expired — renew it in Billing to send broadcasts.' });
+  }
   try {
     const row = await settingsDb.getRaw(req.userId);
     const business = row && row.business_name;

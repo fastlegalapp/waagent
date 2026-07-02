@@ -135,6 +135,7 @@
             <button data-nav="crm">👥 CRM &amp; Leads</button>
             <button data-nav="payments">💳 Payments</button>
             <button data-nav="ai">🔑 AI Provider</button>
+            <button data-nav="billing">💼 Billing</button>
             <button data-nav="replies">⚙️ Replies &amp; Follow-ups</button>
           </nav>
           <div class="side-foot">
@@ -305,6 +306,27 @@
               </div>
             </details>
             <p id="crmMsg" class="muted"></p>
+          </section>
+
+          <!-- BILLING (not part of the settings form) -->
+          <section class="panel hidden" data-panel="billing">
+            <h2>Billing</h2>
+            <div id="billStatus" class="bill-status"></div>
+            <div id="billPlans" class="bill-plans hidden">
+              <div class="bill-plan">
+                <h3>Monthly</h3>
+                <p class="bill-price" id="billPriceMonthly"></p>
+                <button type="button" class="primary" data-plan="monthly">Subscribe monthly</button>
+              </div>
+              <div class="bill-plan">
+                <h3>Yearly <span class="bill-badge">2 months free</span></h3>
+                <p class="bill-price" id="billPriceYearly"></p>
+                <button type="button" class="primary" data-plan="yearly">Subscribe yearly</button>
+              </div>
+            </div>
+            <p id="billMsg" class="muted"></p>
+            <p class="hint">Payments are processed securely by Razorpay. Your plan activates
+              instantly after payment.</p>
           </section>
 
           <!-- PAYMENTS (not part of the settings form) -->

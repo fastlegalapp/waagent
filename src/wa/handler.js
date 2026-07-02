@@ -3,6 +3,7 @@
 const logger = require('../logger');
 const mem = require('../db/messages');
 const crm = require('../db/crm');
+const billing = require('../services/billing');
 const agent = require('../agent/agent');
 const {
   extractText,
@@ -122,6 +123,9 @@ async function handleMessage({ userId, settings, msg, send, sendImage, downloadM
   }
 
   if (settings.reply.mode === 'off') return mark('mode_off'); // logging only
+  // Auto-replies are the paid feature: pause them when the trial/subscription
+  // has lapsed (messages are still stored, leads still captured above).
+  if (!(await billing.isActive(userId))) return mark('subscription_expired');
   if (!settings.ai.apiKey) {
     logger.warn(
       { userId, provider: settings.ai.provider },

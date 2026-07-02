@@ -62,7 +62,7 @@ $('logoutBtn').onclick = async () => {
 
 // ── Sidebar nav ──────────────────────────────────────────────────────────────
 // Standalone panels live directly under .content; the rest live in #settingsForm.
-const STANDALONE_PANELS = ['overview', 'connect', 'lists', 'crm', 'payments'];
+const STANDALONE_PANELS = ['overview', 'connect', 'lists', 'crm', 'payments', 'billing'];
 function showPanel(name) {
   document.querySelectorAll('.side-nav button').forEach((b) =>
     b.classList.toggle('active', b.dataset.nav === name),
@@ -79,6 +79,7 @@ function showPanel(name) {
   if (name === 'lists') loadLists();
   if (name === 'crm') loadCrm();
   if (name === 'payments') loadPaymentQr();
+  if (name === 'billing') loadBilling();
 }
 document.querySelectorAll('.side-nav button').forEach((b) => {
   b.onclick = () => { showPanel(b.dataset.nav); closeNav(); };
@@ -260,6 +261,7 @@ const RESULT_TEXT = {
   replied: ['good', 'Replied to the last message'],
   mode_off: ['bad', 'Reply mode is OFF — set it to Auto and save'],
   no_api_key: ['bad', 'No API key for the selected provider — add it / fix the provider'],
+  subscription_expired: ['bad', 'Subscription expired — renew in Billing to resume auto-replies'],
   not_allowed: ['bad', 'Sender is blocked or not in your allowlist'],
   rate_limited: ['bad', 'Skipped: too soon after the previous reply'],
   after_hours: ['good', 'Outside business hours — sent the holding message'],
@@ -1309,6 +1311,81 @@ $('qrRemoveBtn').onclick = async () => {
   await api('/api/settings', { method: 'PUT', body: JSON.stringify({ paymentQr: '' }) });
   loadPaymentQr();
 };
+
+// ── Billing (Razorpay) ───────────────────────────────────────────────────────
+function loadRazorpayScript() {
+  return new Promise((resolve, reject) => {
+    if (window.Razorpay) return resolve();
+    const s = document.createElement('script');
+    s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('Could not load the payment window.'));
+    document.head.appendChild(s);
+  });
+}
+
+function billStatusHtml(st) {
+  const until = (ts) => new Date(ts).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  if (!st.enabled) return '<p class="ok">✅ Free plan — billing is not enabled on this server.</p>';
+  if (st.plan === 'trial') return `<p>🎁 <strong>Free trial</strong> — ${st.daysLeft} day(s) left (ends ${until(st.trialEndsAt)}). Subscribe to keep the agent running after that.</p>`;
+  if (st.active) return `<p class="ok">✅ <strong>${st.plan === 'yearly' ? 'Yearly' : 'Monthly'} plan active</strong> — renews/expires ${until(st.paidUntil)} (${st.daysLeft} day(s) left).</p>`;
+  return '<p class="error">⚠️ <strong>Subscription expired.</strong> The agent has stopped auto-replying — subscribe below to switch it back on.</p>';
+}
+
+async function loadBilling() {
+  $('billMsg').textContent = '';
+  let st;
+  try { st = await api('/api/billing/status'); }
+  catch (e) { $('billStatus').innerHTML = `<p class="error">${esc(e.message)}</p>`; return; }
+  $('billStatus').innerHTML = billStatusHtml(st);
+  $('billPlans').classList.toggle('hidden', !st.enabled);
+  if (st.enabled) {
+    $('billPriceMonthly').textContent = INR(st.prices.monthly / 100) + ' / month';
+    $('billPriceYearly').textContent = INR(st.prices.yearly / 100) + ' / year';
+  }
+}
+
+async function subscribe(plan) {
+  $('billMsg').textContent = 'Opening payment…';
+  try {
+    await loadRazorpayScript();
+    const order = await api('/api/billing/order', { method: 'POST', body: JSON.stringify({ plan }) });
+    const rzp = new Razorpay({
+      key: order.keyId,
+      order_id: order.orderId,
+      amount: order.amount,
+      currency: order.currency,
+      name: 'FastLegal',
+      description: plan === 'yearly' ? 'Yearly subscription' : 'Monthly subscription',
+      theme: { color: '#ffd23f' },
+      handler: async (resp) => {
+        try {
+          await api('/api/billing/verify', {
+            method: 'POST',
+            body: JSON.stringify({
+              plan,
+              orderId: resp.razorpay_order_id,
+              paymentId: resp.razorpay_payment_id,
+              signature: resp.razorpay_signature,
+            }),
+          });
+          $('billMsg').textContent = '✅ Payment successful — plan activated!';
+          loadBilling();
+        } catch (e) {
+          $('billMsg').textContent = e.message;
+        }
+      },
+    });
+    rzp.on('payment.failed', () => { $('billMsg').textContent = 'Payment failed or was cancelled.'; });
+    rzp.open();
+    $('billMsg').textContent = '';
+  } catch (e) {
+    $('billMsg').textContent = e.message;
+  }
+}
+document.querySelectorAll('#billPlans [data-plan]').forEach((b) => {
+  b.onclick = () => subscribe(b.dataset.plan);
+});
 
 // ── WhatsApp linking ─────────────────────────────────────────────────────────
 let pollTimer = null;
